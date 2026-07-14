@@ -182,17 +182,24 @@ function renderListFilterOptions(){
 }
 
 function renderList(){
-  const q = listSearch.trim().toLowerCase();
-  const filtered = words.filter(w => {
+  const query = listSearch.trim();
+  const hasQuery = query.length > 0;
+  const q = detone(query); // lowercases + strips tone marks; a no-op for Chinese characters
+  // with no search text, show only your own custom words; once you search, look across built-in lists too
+  const source = hasQuery
+    ? combinedPool()
+    : words.map(w => { const s = getStats(w.c, w.m); return { c: w.c, p: w.p, m: w.m, tags: w.tags, correct: s.correct, wrong: s.wrong }; });
+  const filtered = source.filter(w => {
     if (listFilterTags.size && !w.tags.some(t => listFilterTags.has(t))) return false;
-    if (!q) return true;
-    return w.c.includes(listSearch.trim()) || w.p.toLowerCase().includes(q) || w.m.toLowerCase().includes(q);
+    if (!hasQuery) return true;
+    return w.c.includes(query) || detone(w.p).includes(q) || w.m.toLowerCase().includes(q);
   });
-  document.getElementById('countLabel').textContent =
-    `${filtered.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'} shown`;
+  document.getElementById('countLabel').textContent = hasQuery
+    ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'} across all lists`
+    : `${filtered.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'} shown`;
   const box = document.getElementById('wordList');
   box.innerHTML = '';
-  if (words.length === 0) {
+  if (!hasQuery && words.length === 0) {
     box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Quiz page.</div>';
     return;
   }
@@ -201,10 +208,9 @@ function renderList(){
     return;
   }
   [...filtered].reverse().forEach(w => {
-    const idx = words.indexOf(w);
-    const { correct, wrong } = getStats(w.c, w.m);
-    const seen = correct + wrong;
-    const acc = seen > 0 ? Math.round(100 * correct / seen) : null;
+    const idx = words.findIndex(w2 => w2.c === w.c && w2.m === w.m);
+    const seen = w.correct + w.wrong;
+    const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
     const badges = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join(' ');
     const row = document.createElement('div');
     row.className = 'word-row';
@@ -214,7 +220,7 @@ function renderList(){
       <span class="meaning">${w.m}</span>
       <span class="tags">${badges}</span>
       <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
-      <button class="del-btn" data-idx="${idx}" aria-label="Delete">✕</button>
+      ${idx !== -1 ? `<button class="del-btn" data-idx="${idx}" aria-label="Delete">✕</button>` : '<span class="del-btn-spacer"></span>'}
     `;
     box.appendChild(row);
   });
