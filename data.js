@@ -56,7 +56,11 @@ const FULL_HSK1 = [
 ["这个","zhège","this one"],["这里","zhèli","here"],["真","zhēn","really"],["正在","zhèngzài","currently (doing)"],["这儿","zhèr","here"],
 ["这些","zhèxiē","these"],["只","zhǐ","only"],["知道","zhīdào","know"],["中国","zhōngguó","China"],["中文","zhōngwén","Chinese (language)"],
 ["中午","zhōngwǔ","noon"],["中学","zhōngxué","middle school"],["中学生","zhōngxuéshēng","middle school student"],["住","zhù","live / reside"],["桌子","zhuōzi","table"],
-["字","zì","character / word"],["昨天","zuótiān","yesterday"],["坐","zuò","sit"],["做","zuò","do / make"],["做饭","zuòfàn","cook"]
+["字","zì","character / word"],["昨天","zuótiān","yesterday"],["坐","zuò","sit"],["做","zuò","do / make"],["做饭","zuòfàn","cook"],
+["杯","bēi","cup / glass (measure word)"],["唱","chàng","sing"],["对","duì","correct / towards"],["件","jiàn","(measure word for clothes/items)"],["叫","jiào","be called / call"],
+["没","méi","not (have)"],["没事","méishì","it's nothing / no big deal"],["面条儿","miàntiáor","noodles"],["你好","nǐ hǎo","hello"],["前边","qiánbian","front side"],
+["去","qù","go"],["日","rì","day / sun"],["上午","shàngwǔ","morning"],["水","shuǐ","water"],["晚","wǎn","late / evening"],
+["下班","xiàbān","get off work"],["星期日","xīngqīrì","Sunday"],["学","xué","learn / study"]
 ];
 
 // Easy Steps to Chinese 1 (ES1) vocabulary list, transcribed from the textbook glossary
@@ -172,5 +176,6 @@ const FULL_HSK2 = [
 ["药店","yàodiàn","pharmacy"],["爷爷","yéye","grandfather (paternal)"],["一会儿","yíhuìr","a moment; a while"],["已经","yǐjīng","already"],["阴","yīn","overcast; cloudy"],["因为","yīnwèi","because"],["一起","yìqǐ","together"],["意思","yìsi","meaning"],["游","yóu","swim"],["右","yòu","right (direction)"],
 ["右边","yòubian","right side"],["有时","yǒushí","sometimes"],["有意思","yǒu yìsi","interesting"],["游泳","yóuyǒng","swim"],["鱼","yú","fish"],["远","yuǎn","far"],["运动","yùndòng","sports; exercise"],["站","zhàn","stand; station"],
 ["丈夫","zhàngfu","husband"],["着","zhe","(continuous action particle)"],["这么","zhème","so; like this"],["正","zhèng","exactly; just"],["这样","zhèyàng","like this"],["周","zhōu","week"],["准备","zhǔnbèi","prepare"],["自己","zìjǐ","oneself"],["走","zǒu","walk"],["走路","zǒulù","walk"],["最","zuì","most"],
-["左","zuǒ","left"],["左边","zuǒbian","left side"],["足球","zúqiú","football; soccer"]
+["左","zuǒ","left"],["左边","zuǒbian","left side"],["足球","zúqiú","football; soccer"],
+["北京烤鸭","Běijīng Kǎoyā","Beijing roast duck"],["北京大学","Běijīng Dàxué","Peking University"],["颐和园","Yíhé Yuán","Summer Palace"]
 ];
