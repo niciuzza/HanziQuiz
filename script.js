@@ -1,7 +1,7 @@
 const STORAGE_KEY = 'hsk-vocab-words';
 const STATS_KEY = 'hsk-vocab-stats';
 const SESSION_KEY = 'hsk-vocab-session';
-const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, ES1: FULL_ES1 };
+const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
@@ -152,6 +152,8 @@ function saveWords(){
 function tagClass(tag){
   if (tag === 'HSK1') return 'hsk1';
   if (tag === 'HSK2') return 'hsk2';
+  if (tag === 'HSK3') return 'hsk3';
+  if (tag === 'HSK4') return 'hsk4';
   if (tag.startsWith('ES')) return 'es';
   return 'other';
 }

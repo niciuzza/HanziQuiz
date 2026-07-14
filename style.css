@@ -12,6 +12,10 @@
   --accent-solid:#1868b0;
   --hsk2-bg:#ece0fb;
   --hsk2-text:#5b2793;
+  --hsk3-bg:#fbe8d2;
+  --hsk3-text:#8a4b06;
+  --hsk4-bg:#fbdce6;
+  --hsk4-text:#8f1249;
   --success-bg:#e2f0d2;
   --success-text:#204006;
   --success-border:#5c8f1e;
@@ -37,6 +41,10 @@
     --accent-solid:#4c9ade;
     --hsk2-bg:#3c2461;
     --hsk2-text:#e0c9fb;
+    --hsk3-bg:#5c3a10;
+    --hsk3-text:#fbd7a8;
+    --hsk4-bg:#5c1435;
+    --hsk4-text:#fbc4dc;
     --success-bg:#23430c;
     --success-text:#cfe9a9;
     --success-border:#7cae3e;
@@ -196,6 +204,8 @@ input::placeholder{ color:var(--text-muted); }
 .badge{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap; }
 .badge.hsk1{ background:var(--accent-bg); color:var(--accent-text); }
 .badge.hsk2{ background:var(--hsk2-bg); color:var(--hsk2-text); }
+.badge.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); }
+.badge.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); }
 .badge.es{ background:var(--success-bg); color:var(--success-text); }
 .badge.other{ background:var(--surface-1); color:var(--text-secondary); border:1px solid var(--border); }
 .word-row .acc{ font-size:12px; color:var(--text-muted); min-width:34px; text-align:right; font-variant-numeric:tabular-nums; }
@@ -209,6 +219,8 @@ input::placeholder{ color:var(--text-muted); }
 .tag-filter-row button{ padding:5px 14px; font-size:13px; }
 .tag-filter-row button.active.hsk1{ background:var(--accent-bg); color:var(--accent-text); border-color:transparent; }
 .tag-filter-row button.active.hsk2{ background:var(--hsk2-bg); color:var(--hsk2-text); border-color:transparent; }
+.tag-filter-row button.active.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); border-color:transparent; }
+.tag-filter-row button.active.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); border-color:transparent; }
 .tag-filter-row button.active.es{ background:var(--success-bg); color:var(--success-text); border-color:transparent; }
 .tag-filter-row button:not(.active){ color:var(--text-muted); background:transparent; }
 .pool-count{ font-size:12px; color:var(--text-muted); margin:0 0 20px; font-weight:500; }
