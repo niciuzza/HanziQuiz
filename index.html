@@ -13,6 +13,7 @@
     <div class="tab-row">
       <button class="tab-btn active" data-tab="add">Add words</button>
       <button class="tab-btn" data-tab="quiz">Quiz me</button>
+      <button class="tab-btn" data-tab="progress">Progress</button>
     </div>
 
     <section id="addPane">
@@ -44,6 +45,8 @@
     <section id="quizPane" class="hidden">
       <p class="section-label">Practice from:</p>
       <div class="tag-filter-row" id="tagFilterRow"></div>
+      <p class="section-label">Round size:</p>
+      <div class="tag-filter-row" id="roundSizeRow"></div>
       <p class="pool-count" id="poolCount"></p>
 
       <div class="stat-row">
@@ -55,16 +58,38 @@
           <div class="stat-label">Streak</div>
           <div class="stat-value" id="streakOut">0</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-label">Seen</div>
+          <div class="stat-value" id="seenCount">0 / 0</div>
+        </div>
       </div>
 
       <div class="question-box" id="questionBox">
         <div class="q-main" id="qMain">-</div>
+        <p class="feedback" id="feedback"></p>
+      </div>
+
+      <div class="congrats-box hidden" id="congratsBox">
+        <div class="congrats-emoji">🎉</div>
+        <h2>You've seen every word in this list!</h2>
+        <p class="congrats-summary" id="congratsSummary"></p>
+        <div class="congrats-actions">
+          <button id="resetPoolBtn" class="next-btn">Reset &amp; play again</button>
+          <button id="keepReviewingBtn">Keep reviewing</button>
+        </div>
       </div>
 
       <div class="options" id="options"></div>
-      <p class="feedback" id="feedback"></p>
+      <button id="dontKnowBtn" class="dont-know-btn hidden">I don't know</button>
       <button id="nextBtn" class="next-btn hidden">Next question →</button>
       <p class="not-enough" id="notEnough"></p>
+    </section>
+
+    <section id="progressPane" class="hidden">
+      <p class="section-label">Words you've gotten wrong</p>
+      <div class="word-list" id="wrongList"></div>
+      <p class="section-label" style="margin-top:20px;">Words you've marked "I don't know"</p>
+      <div class="word-list" id="dontKnowList"></div>
     </section>
   </div>
 

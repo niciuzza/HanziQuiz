@@ -217,6 +217,7 @@ input::placeholder{ color:var(--text-muted); }
 .tag-filter-row{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
 .tag-filter-row + .pool-count{ margin-top:-6px; }
 .tag-filter-row button{ padding:5px 14px; font-size:13px; }
+.tag-filter-row button.active{ background:var(--accent-bg); color:var(--accent-text); border-color:transparent; }
 .tag-filter-row button.active.hsk1{ background:var(--accent-bg); color:var(--accent-text); border-color:transparent; }
 .tag-filter-row button.active.hsk2{ background:var(--hsk2-bg); color:var(--hsk2-text); border-color:transparent; }
 .tag-filter-row button.active.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); border-color:transparent; }
@@ -238,12 +239,28 @@ input::placeholder{ color:var(--text-muted); }
   text-align:center;
   min-height:110px;
   display:flex;
+  flex-direction:column;
   align-items:center;
   justify-content:center;
   margin-bottom:18px;
   box-shadow:var(--shadow);
 }
 .q-main{ font-size:46px; font-weight:700; letter-spacing:0.02em; }
+
+.congrats-box{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:32px 24px;
+  text-align:center;
+  margin-bottom:18px;
+  box-shadow:var(--shadow);
+}
+.congrats-box h2{ font-size:18px; margin:0 0 8px; }
+.congrats-emoji{ font-size:40px; line-height:1; margin-bottom:8px; }
+.congrats-summary{ color:var(--text-secondary); margin:0 0 20px; }
+.congrats-actions{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+.congrats-actions .next-btn{ width:auto; margin-top:0; }
 
 .options{ display:flex; flex-direction:column; gap:8px; }
 .option-row{ display:flex; align-items:stretch; gap:6px; }
@@ -264,7 +281,12 @@ input::placeholder{ color:var(--text-muted); }
 .option-main.wrong .bottom{ color:var(--danger-text); }
 .speak-btn{ padding:0 16px; display:flex; align-items:center; justify-content:center; font-size:16px; }
 
+.dont-know-btn{ width:100%; margin-top:8px; background:transparent; border-color:var(--danger-border); color:var(--danger-text); }
+.dont-know-btn:hover{ background:var(--danger-bg); }
+.dont-know-btn:disabled{ opacity:0.5; }
+
 .feedback{ margin-top:14px; font-size:15px; min-height:20px; text-align:center; font-weight:600; }
+.question-box .feedback{ margin-top:8px; }
 .feedback.correct{ color:var(--success-text); }
 .feedback.wrong{ color:var(--danger-text); }
 .next-btn{
