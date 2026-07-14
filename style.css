@@ -285,6 +285,9 @@ input::placeholder{ color:var(--text-muted); }
 .dont-know-btn:hover{ background:var(--danger-bg); }
 .dont-know-btn:disabled{ opacity:0.5; }
 
+.reset-progress-btn{ width:100%; margin-bottom:20px; background:transparent; border-color:var(--danger-border); color:var(--danger-text); }
+.reset-progress-btn:hover{ background:var(--danger-bg); }
+
 .feedback{ margin-top:14px; font-size:15px; min-height:20px; text-align:center; font-weight:600; }
 .question-box .feedback{ margin-top:8px; }
 .feedback.correct{ color:var(--success-text); }

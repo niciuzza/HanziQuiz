@@ -387,6 +387,14 @@ function renderProgress(){
   }
 }
 
+document.getElementById('resetProgressBtn').onclick = () => {
+  const ok = confirm('Reset all quiz progress? This clears every word\'s correct/wrong/"don\'t know" history across every list. This can\'t be undone.');
+  if (!ok) return;
+  statsMap = {};
+  saveStats();
+  renderProgress();
+};
+
 document.getElementById('searchWord').oninput = (e) => {
   listSearch = e.target.value;
   renderList();
