@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chinese Vocab Builder — HSK1 / ES1</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <h1>Chinese Vocab Builder</h1>
+
+    <div class="tab-row">
+      <button class="tab-btn active" data-tab="add">Add words</button>
+      <button class="tab-btn" data-tab="quiz">Quiz me</button>
+    </div>
+
+    <section id="addPane">
+      <div class="bulk-row">
+        <button id="bulkBtnHSK"><span class="icon">⭳</span> Import HSK1</button>
+        <button id="bulkBtnES1"><span class="icon">⭳</span> Import ES1</button>
+      </div>
+      <p class="stats-line" id="statsLine"></p>
+      <p class="msg" id="bulkMsg"></p>
+
+      <div class="add-form">
+        <input id="inChar" placeholder="你好">
+        <input id="inPinyin" placeholder="nǐhǎo">
+        <input id="inMeaning" placeholder="hello">
+        <input id="inTag" placeholder="ES1" list="tagOptions">
+        <datalist id="tagOptions"></datalist>
+        <button id="addBtn">+</button>
+      </div>
+      <p class="msg" id="addMsg"></p>
+      <p class="count-label" id="countLabel">0 words saved</p>
+      <div class="word-list" id="wordList"></div>
+    </section>
+
+    <section id="quizPane" class="hidden">
+      <p class="section-label">Practice from:</p>
+      <div class="tag-filter-row" id="tagFilterRow"></div>
+
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">Score</div>
+          <div class="stat-value" id="scoreOut">0 / 0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Streak</div>
+          <div class="stat-value" id="streakOut">0</div>
+        </div>
+      </div>
+
+      <div class="question-box" id="questionBox">
+        <div class="q-main" id="qMain">-</div>
+      </div>
+
+      <div class="options" id="options"></div>
+      <p class="feedback" id="feedback"></p>
+      <button id="nextBtn" class="next-btn hidden">Next question →</button>
+      <p class="not-enough" id="notEnough"></p>
+    </section>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
