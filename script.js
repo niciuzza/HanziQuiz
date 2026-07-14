@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'hsk-vocab-words';
 const STATS_KEY = 'hsk-vocab-stats';
+const SESSION_KEY = 'hsk-vocab-session';
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong }, covers built-in + custom words
@@ -85,6 +86,24 @@ function saveStats(){
   try { localStorage.setItem(STATS_KEY, JSON.stringify(statsMap)); } catch (e) {}
 }
 
+/* ---------- session (score/streak + which lists are active, so a reload resumes the game) ---------- */
+function loadSession(){
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    score = s.score || 0;
+    total = s.total || 0;
+    streak = s.streak || 0;
+    if (Array.isArray(s.activeTags) && s.activeTags.length) activeTags = new Set(s.activeTags);
+  } catch (e) {}
+}
+function saveSession(){
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ score, total, streak, activeTags: [...activeTags] }));
+  } catch (e) {}
+}
+
 /* ---------- combined pool: built-in lists + user's custom words ---------- */
 function combinedPool(){
   const map = new Map();
@@ -152,6 +171,7 @@ function renderTagOptions(){
     btn.onclick = () => {
       if (activeTags.has(t)) activeTags.delete(t); else activeTags.add(t);
       refresh();
+      saveSession();
       newQuestion();
     };
     refresh();
@@ -160,8 +180,13 @@ function renderTagOptions(){
 }
 
 /* ---------- word list ---------- */
+// if 2+ built-in list tags (HSK1/HSK2/ES1) are selected in the filter row, "overlap" means
+// present in every one of those selected lists; otherwise it falls back to present in any 2+
+// of all built-in lists
 function isOverlap(w){
-  return w.tags.filter(t => BUILTIN_LISTS[t]).length >= 2;
+  const selected = [...listFilterTags].filter(t => BUILTIN_LISTS[t]);
+  if (selected.length >= 2) return selected.every(t => w.tags.includes(t));
+  return Object.keys(BUILTIN_LISTS).filter(t => w.tags.includes(t)).length >= 2;
 }
 function countOverlaps(){
   return combinedPool().filter(isOverlap).length;
@@ -232,9 +257,11 @@ function renderList(){
       <span class="char">${w.c}</span>
       <span class="pinyin">${spacedPinyin(w.p)}</span>
       <span class="meaning">${w.m}</span>
-      <span class="tags">${badges}</span>
-      <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
-      ${idx !== -1 ? `<button class="del-btn" data-idx="${idx}" aria-label="Delete">✕</button>` : '<span class="del-btn-spacer"></span>'}
+      <span class="row-meta">
+        <span class="tags">${badges}</span>
+        <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
+        ${idx !== -1 ? `<button class="del-btn" data-idx="${idx}" aria-label="Delete">✕</button>` : '<span class="del-btn-spacer"></span>'}
+      </span>
     `;
     box.appendChild(row);
   });
@@ -394,6 +421,7 @@ function newQuestion(){
       document.getElementById('scoreOut').textContent = `${score} / ${total}`;
       document.getElementById('streakOut').textContent = streak;
       document.getElementById('nextBtn').classList.remove('hidden');
+      saveSession();
     };
 
     row.appendChild(mainBtn);
@@ -424,4 +452,7 @@ document.querySelectorAll('.tab-btn').forEach(b => {
 updateStatsLine();
 loadStats();
 activeTags = new Set(Object.keys(BUILTIN_LISTS));
+loadSession(); // may override score/total/streak/activeTags with a resumed session
+document.getElementById('scoreOut').textContent = `${score} / ${total}`;
+document.getElementById('streakOut').textContent = streak;
 loadWords();
