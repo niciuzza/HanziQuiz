@@ -5,6 +5,8 @@ let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
 let activeTags = new Set();
+let listSearch = '';
+let listFilterTags = new Set();
 
 /* ---------- pinyin syllable splitting ---------- */
 const CAP_TONE = /[ĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙǕǗǙǛ]/;
@@ -119,6 +121,7 @@ function loadWords(){
   }
   words.forEach(w => { if (!w.tags) w.tags = [w.tag || 'untagged']; });
   renderList();
+  renderListFilterOptions();
   renderTagOptions();
 }
 function saveWords(){
@@ -155,15 +158,49 @@ function renderTagOptions(){
 }
 
 /* ---------- word list ---------- */
+function renderListFilterOptions(){
+  const tags = [...new Set(words.flatMap(w => w.tags))];
+  const filterRow = document.getElementById('listFilterRow');
+  filterRow.innerHTML = '';
+  // drop selected tags that no longer exist (e.g. after deleting the last word with that tag)
+  listFilterTags.forEach(t => { if (!tags.includes(t)) listFilterTags.delete(t); });
+  tags.forEach(t => {
+    const btn = document.createElement('button');
+    btn.textContent = t;
+    const cls = tagClass(t);
+    const refresh = () => {
+      btn.className = listFilterTags.has(t) ? `active ${cls}` : '';
+    };
+    btn.onclick = () => {
+      if (listFilterTags.has(t)) listFilterTags.delete(t); else listFilterTags.add(t);
+      refresh();
+      renderList();
+    };
+    refresh();
+    filterRow.appendChild(btn);
+  });
+}
+
 function renderList(){
-  document.getElementById('countLabel').textContent = `${words.length} ${words.length === 1 ? 'word' : 'words'} saved`;
+  const q = listSearch.trim().toLowerCase();
+  const filtered = words.filter(w => {
+    if (listFilterTags.size && !w.tags.some(t => listFilterTags.has(t))) return false;
+    if (!q) return true;
+    return w.c.includes(listSearch.trim()) || w.p.toLowerCase().includes(q) || w.m.toLowerCase().includes(q);
+  });
+  document.getElementById('countLabel').textContent =
+    `${filtered.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'} shown`;
   const box = document.getElementById('wordList');
   box.innerHTML = '';
   if (words.length === 0) {
     box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Quiz page.</div>';
     return;
   }
-  [...words].reverse().forEach(w => {
+  if (filtered.length === 0) {
+    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words match your search/filter.</div>';
+    return;
+  }
+  [...filtered].reverse().forEach(w => {
     const idx = words.indexOf(w);
     const { correct, wrong } = getStats(w.c, w.m);
     const seen = correct + wrong;
@@ -186,10 +223,16 @@ function renderList(){
       words.splice(parseInt(b.dataset.idx), 1);
       saveWords();
       renderList();
+      renderListFilterOptions();
       renderTagOptions();
     };
   });
 }
+
+document.getElementById('searchWord').oninput = (e) => {
+  listSearch = e.target.value;
+  renderList();
+};
 
 function findBuiltinTags(c){
   return Object.entries(BUILTIN_LISTS)
@@ -226,6 +269,7 @@ document.getElementById('addBtn').onclick = () => {
   document.getElementById('inPinyin').value = '';
   document.getElementById('inMeaning').value = '';
   renderList();
+  renderListFilterOptions();
   renderTagOptions();
 };
 

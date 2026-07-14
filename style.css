@@ -92,6 +92,9 @@ input{
   gap:8px;
   margin-bottom:12px;
 }
+.list-controls{ margin-bottom:12px; }
+.list-controls input[type="search"]{ margin-bottom:8px; }
+.list-controls .tag-filter-row{ margin-bottom:0; }
 .count-label{ font-size:13px; color:var(--text-secondary); margin-bottom:8px; }
 
 .word-list{
