@@ -9,6 +9,11 @@ let activeTags = new Set();
 let listSearch = '';
 let listFilterTags = new Set();
 let overlapOnly = false;
+let reviewMode = false; // when true, skip the congrats gate even if every word in the pool has been seen
+const UNSEEN_BONUS = 8; // weight multiplier for words never asked before (correct+wrong+dontknow === 0)
+let roundSize = 'all'; // 25|50|100|150|200|250|'all' — how many unique words make up the current round
+let roundKeys = null; // array of statKeys in the current round, or null if not yet rolled
+const ROUND_SIZES = [25, 50, 100, 150, 200, 250];
 
 /* ---------- pinyin syllable splitting ---------- */
 const CAP_TONE = /[ĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙǕǗǙǛ]/;
@@ -67,10 +72,15 @@ function speak(text){
 
 /* ---------- stats (per-word progress, keyed by character+meaning) ---------- */
 function statKey(c, m){ return c + '::' + m; }
-function getStats(c, m){ return statsMap[statKey(c, m)] || { correct: 0, wrong: 0 }; }
+function getStats(c, m){
+  const s = statsMap[statKey(c, m)];
+  if (!s) return { correct: 0, wrong: 0, dontknow: 0 };
+  return { correct: s.correct || 0, wrong: s.wrong || 0, dontknow: s.dontknow || 0 };
+}
 function bumpStat(c, m, field){
   const k = statKey(c, m);
-  if (!statsMap[k]) statsMap[k] = { correct: 0, wrong: 0 };
+  if (!statsMap[k]) statsMap[k] = { correct: 0, wrong: 0, dontknow: 0 };
+  if (statsMap[k][field] === undefined) statsMap[k][field] = 0;
   statsMap[k][field]++;
   saveStats();
 }
@@ -96,11 +106,13 @@ function loadSession(){
     total = s.total || 0;
     streak = s.streak || 0;
     if (Array.isArray(s.activeTags) && s.activeTags.length) activeTags = new Set(s.activeTags);
+    roundSize = s.roundSize || 'all';
+    roundKeys = Array.isArray(s.roundKeys) ? s.roundKeys : null;
   } catch (e) {}
 }
 function saveSession(){
   try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ score, total, streak, activeTags: [...activeTags] }));
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ score, total, streak, activeTags: [...activeTags], roundSize, roundKeys }));
   } catch (e) {}
 }
 
@@ -121,8 +133,33 @@ function combinedPool(){
   });
   return [...map.values()].map(w => {
     const s = getStats(w.c, w.m);
-    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], correct: s.correct, wrong: s.wrong };
+    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
   });
+}
+
+function seenCount(pool){
+  return pool.filter(w => w.correct + w.wrong + w.dontknow > 0).length;
+}
+
+/* ---------- round: a fixed random subset of the tag-filtered pool, sized by roundSize ---------- */
+function rollRound(pool){
+  const n = roundSize === 'all' ? pool.length : Math.min(roundSize, pool.length);
+  roundKeys = pickRandom(pool, n, null).map(w => statKey(w.c, w.m));
+  saveSession();
+}
+function resolveRoundPool(taggedPool){
+  const poolKeys = new Set(taggedPool.map(w => statKey(w.c, w.m)));
+  if (!roundKeys || roundKeys.every(k => !poolKeys.has(k))) {
+    rollRound(taggedPool);
+  }
+  let roundSet = new Set(roundKeys);
+  let resolved = taggedPool.filter(w => roundSet.has(statKey(w.c, w.m)));
+  if (resolved.length < Math.min(4, taggedPool.length)) {
+    rollRound(taggedPool);
+    roundSet = new Set(roundKeys);
+    resolved = taggedPool.filter(w => roundSet.has(statKey(w.c, w.m)));
+  }
+  return resolved;
 }
 
 function updateStatsLine(){
@@ -143,6 +180,7 @@ function loadWords(){
   renderList();
   renderListFilterOptions();
   renderTagOptions();
+  renderRoundSizeOptions();
 }
 function saveWords(){
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(words)); } catch (e) {}
@@ -173,11 +211,41 @@ function renderTagOptions(){
     btn.onclick = () => {
       if (activeTags.has(t)) activeTags.delete(t); else activeTags.add(t);
       refresh();
+      reviewMode = false;
+      roundKeys = null;
       saveSession();
+      renderRoundSizeOptions();
       newQuestion();
     };
     refresh();
     filterRow.appendChild(btn);
+  });
+}
+
+function renderRoundSizeOptions(){
+  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const options = [...ROUND_SIZES.filter(n => n <= taggedPool.length), 'all'];
+  if (roundSize !== 'all' && !options.includes(roundSize)) {
+    roundSize = 'all';
+    saveSession();
+  }
+  const row = document.getElementById('roundSizeRow');
+  row.innerHTML = '';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.textContent = opt === 'all' ? 'All' : String(opt);
+    const refresh = () => {
+      btn.className = roundSize === opt ? 'active' : '';
+    };
+    btn.onclick = () => {
+      roundSize = opt;
+      roundKeys = null;
+      saveSession();
+      renderRoundSizeOptions();
+      newQuestion();
+    };
+    refresh();
+    row.appendChild(btn);
   });
 }
 
@@ -278,6 +346,47 @@ function renderList(){
   });
 }
 
+/* ---------- progress: words ever answered wrong / marked "I don't know", across all lists ---------- */
+function buildWordRow(w){
+  const seen = w.correct + w.wrong;
+  const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
+  const badges = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join(' ');
+  const row = document.createElement('div');
+  row.className = 'word-row';
+  row.innerHTML = `
+    <span class="char">${w.c}</span>
+    <span class="pinyin">${spacedPinyin(w.p)}</span>
+    <span class="meaning">${w.m}</span>
+    <span class="row-meta">
+      <span class="tags">${badges}</span>
+      <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
+    </span>
+  `;
+  return row;
+}
+
+function renderProgress(){
+  const pool = combinedPool();
+  const wrongWords = pool.filter(w => w.wrong > 0).sort((a, b) => b.wrong - a.wrong);
+  const dontKnowWords = pool.filter(w => w.dontknow > 0).sort((a, b) => b.dontknow - a.dontknow);
+
+  const wrongBox = document.getElementById('wrongList');
+  wrongBox.innerHTML = '';
+  if (wrongWords.length === 0) {
+    wrongBox.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No wrong answers yet — nice!</div>';
+  } else {
+    wrongWords.forEach(w => wrongBox.appendChild(buildWordRow(w)));
+  }
+
+  const dkBox = document.getElementById('dontKnowList');
+  dkBox.innerHTML = '';
+  if (dontKnowWords.length === 0) {
+    dkBox.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">Nothing marked "I don\'t know" yet.</div>';
+  } else {
+    dontKnowWords.forEach(w => dkBox.appendChild(buildWordRow(w)));
+  }
+}
+
 document.getElementById('searchWord').oninput = (e) => {
   listSearch = e.target.value;
   renderList();
@@ -340,10 +449,11 @@ function pickRandom(arr, n, exclude){
 
 function weightedPick(pool, excludeKey){
   const weights = pool.map(w => {
-    const base = 1 + w.wrong * 2.5 - w.correct * 0.4;
+    const base = 1 + (w.wrong + w.dontknow) * 2.5 - w.correct * 0.4;
     const clamped = Math.max(0.3, base);
+    const unseenBonus = (w.correct + w.wrong + w.dontknow === 0) ? UNSEEN_BONUS : 1;
     const jitter = 0.6 + Math.random() * 0.8;
-    let val = clamped * jitter;
+    let val = clamped * unseenBonus * jitter;
     if (excludeKey && statKey(w.c, w.m) === excludeKey) val *= 0.15;
     return val;
   });
@@ -356,23 +466,52 @@ function weightedPick(pool, excludeKey){
   return pool[pool.length - 1];
 }
 
+function showCongrats(pool){
+  document.getElementById('questionBox').classList.add('hidden');
+  document.getElementById('options').innerHTML = '';
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('dontKnowBtn').classList.add('hidden');
+  document.getElementById('nextBtn').classList.add('hidden');
+  document.getElementById('notEnough').textContent = '';
+  const pct = total > 0 ? Math.round(100 * score / total) : 0;
+  document.getElementById('congratsSummary').textContent =
+    `${pool.length} words · score ${score} / ${total} (${pct}%) this session`;
+  document.getElementById('congratsBox').classList.remove('hidden');
+}
+function hideCongrats(){
+  document.getElementById('congratsBox').classList.add('hidden');
+}
+
 function newQuestion(){
   const notEnough = document.getElementById('notEnough');
   document.getElementById('nextBtn').classList.add('hidden');
-  const pool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const pool = resolveRoundPool(taggedPool);
   document.getElementById('poolCount').textContent = `${pool.length} ${pool.length === 1 ? 'word' : 'words'} chosen`;
-  if (pool.length < 4) {
+  const seen = seenCount(pool);
+  document.getElementById('seenCount').textContent = `${seen} / ${pool.length} words seen`;
+  if (taggedPool.length < 4) {
+    hideCongrats();
     notEnough.textContent = 'select tags with at least 4 words total to quiz';
     document.getElementById('questionBox').classList.add('hidden');
     document.getElementById('options').innerHTML = '';
     document.getElementById('feedback').textContent = '';
+    document.getElementById('dontKnowBtn').classList.add('hidden');
     return;
   }
+  if (seen === pool.length && !reviewMode) {
+    showCongrats(pool);
+    return;
+  }
+  hideCongrats();
   notEnough.textContent = '';
   document.getElementById('questionBox').classList.remove('hidden');
   const feedback = document.getElementById('feedback');
   feedback.textContent = '';
   feedback.className = 'feedback';
+  const dontKnowBtn = document.getElementById('dontKnowBtn');
+  dontKnowBtn.classList.remove('hidden');
+  dontKnowBtn.disabled = false;
 
   const word = weightedPick(pool, lastWord);
   lastWord = statKey(word.c, word.m);
@@ -386,6 +525,33 @@ function newQuestion(){
   const choiceWords = [...distractors, word].sort(() => Math.random() - 0.5);
 
   let answered = false;
+  function finishQuestion(outcome, clickedBtn){ // outcome: 'correct' | 'wrong' | 'dontknow'
+    if (answered) return;
+    answered = true;
+    total++;
+    if (outcome === 'correct') {
+      score++; streak++; bumpStat(word.c, word.m, 'correct');
+      clickedBtn.classList.add('correct');
+      feedback.textContent = `✓ correct — ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
+      feedback.className = 'feedback correct';
+    } else {
+      streak = 0;
+      bumpStat(word.c, word.m, outcome);
+      if (clickedBtn) clickedBtn.classList.add('wrong');
+      feedback.textContent = `✗ answer: ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
+      feedback.className = 'feedback wrong';
+    }
+    opts.querySelectorAll('.option-main').forEach((b2, i2) => {
+      b2.disabled = true;
+      if (choiceWords[i2] === word && outcome !== 'correct') b2.classList.add('correct');
+    });
+    dontKnowBtn.disabled = true;
+    document.getElementById('scoreOut').textContent = `${score} / ${total}`;
+    document.getElementById('streakOut').textContent = streak;
+    document.getElementById('nextBtn').classList.remove('hidden');
+    saveSession();
+  }
+
   choiceWords.forEach(cw => {
     const row = document.createElement('div');
     row.className = 'option-row';
@@ -400,53 +566,45 @@ function newQuestion(){
     speakBtn.textContent = '🔊';
     speakBtn.onclick = (e) => { e.stopPropagation(); speak(cw.c); };
 
-    mainBtn.onclick = () => {
-      if (answered) return;
-      answered = true;
-      total++;
-      const isCorrect = (cw === word);
-      if (isCorrect) {
-        score++; streak++; bumpStat(word.c, word.m, 'correct');
-        mainBtn.classList.add('correct');
-        feedback.textContent = `✓ correct — ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
-        feedback.className = 'feedback correct';
-      } else {
-        streak = 0; bumpStat(word.c, word.m, 'wrong');
-        mainBtn.classList.add('wrong');
-        feedback.textContent = `✗ answer: ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
-        feedback.className = 'feedback wrong';
-      }
-      opts.querySelectorAll('.option-main').forEach((b2, i2) => {
-        b2.disabled = true;
-        if (choiceWords[i2] === word && !isCorrect) b2.classList.add('correct');
-      });
-      document.getElementById('scoreOut').textContent = `${score} / ${total}`;
-      document.getElementById('streakOut').textContent = streak;
-      document.getElementById('nextBtn').classList.remove('hidden');
-      saveSession();
-    };
+    mainBtn.onclick = () => finishQuestion(cw === word ? 'correct' : 'wrong', mainBtn);
 
     row.appendChild(mainBtn);
     row.appendChild(speakBtn);
     opts.appendChild(row);
   });
+
+  dontKnowBtn.onclick = () => finishQuestion('dontknow', null);
 }
 
 document.getElementById('nextBtn').onclick = newQuestion;
 
+document.getElementById('resetPoolBtn').onclick = () => {
+  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const pool = resolveRoundPool(taggedPool);
+  pool.forEach(w => { delete statsMap[statKey(w.c, w.m)]; });
+  saveStats();
+  score = 0; total = 0; streak = 0;
+  document.getElementById('scoreOut').textContent = `${score} / ${total}`;
+  document.getElementById('streakOut').textContent = streak;
+  saveSession();
+  reviewMode = false;
+  newQuestion();
+};
+document.getElementById('keepReviewingBtn').onclick = () => {
+  reviewMode = true;
+  newQuestion();
+};
+
 /* ---------- tabs ---------- */
+const TAB_PANES = { add: 'addPane', quiz: 'quizPane', progress: 'progressPane' };
 document.querySelectorAll('.tab-btn').forEach(b => {
   b.onclick = () => {
     document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
-    if (b.dataset.tab === 'add') {
-      document.getElementById('addPane').classList.remove('hidden');
-      document.getElementById('quizPane').classList.add('hidden');
-    } else {
-      document.getElementById('addPane').classList.add('hidden');
-      document.getElementById('quizPane').classList.remove('hidden');
-      newQuestion();
-    }
+    Object.values(TAB_PANES).forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById(TAB_PANES[b.dataset.tab]).classList.remove('hidden');
+    if (b.dataset.tab === 'quiz') newQuestion();
+    if (b.dataset.tab === 'progress') renderProgress();
   };
 });
 
