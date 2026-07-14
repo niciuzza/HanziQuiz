@@ -149,3 +149,28 @@ const FULL_ES1 = [
 ["昨天","zuótiān","yesterday"],["作","zuò","do"],["坐","zuò","sit"],["坐","zuò","travel by"],["坐地铁","zuò dìtiě","take the underground"],
 ["做","zuò","do"]
 ];
+
+// HSK 3.0 Level 2 official vocabulary list (204 words)
+const FULL_HSK2 = [
+["啊","a","ah (particle)"],["爱好","àihào","hobby"],["白色","báisè","white"],["班","bān","class/shift"],["帮","bāng","help"],["帮忙","bāngmáng","help; do a favor"],["包","bāo","bag"],["本子","běnzi","notebook"],["比","bǐ","compare; than"],["笔","bǐ","pen"],["别","bié","don't"],["不错","búcuò","pretty good"],
+["不好意思","bù hǎoyìsi","embarrassed; sorry"],["长","cháng","long"],["车站","chēzhàn","station"],["出","chū","go out"],["床","chuáng","bed"],["出国","chūguó","go abroad"],["出来","chūlái","come out"],["出门","chūmén","go out"],["出去","chūqù","go out"],
+["词","cí","word"],["次","cì","time (occurrence)"],["从","cóng","from"],["从小","cóngxiǎo","since childhood"],["错","cuò","wrong"],["打","dǎ","hit; play"],["打车","dǎchē","take a taxi"],["打开","dǎkāi","open"],["但","dàn","but"],["但是","dànshì","but"],["得","de","(complement particle)"],["地","de","(adverbial particle)"],["等","děng","wait"],
+["点","diǎn","o'clock; order"],["地铁","dìtiě","subway"],["动","dòng","move"],["懂","dǒng","understand"],["多","duō","many; much"],["饭馆","fànguǎn","restaurant"],["飞","fēi","fly"],["高","gāo","tall"],["告诉","gàosu","tell"],["高中","gāozhōng","high school"],["给","gěi","give"],["跟","gēn","with; follow"],
+["个子","gèzi","height; stature"],["公交车","gōngjiāochē","bus"],["过","guò","pass; cross"],["过","guo","(past experience particle)"],["过来","guòlái","come over"],["过年","guònián","celebrate new year"],["过去","guòqù","past; go over"],["还是","háishi","or; still"],["好","hǎo","good"],["黑色","hēisè","black"],
+["红茶","hóngchá","black tea"],["红色","hóngsè","red"],["后面","hòumiàn","behind"],["画","huà","draw; painting"],["花","huā","flower"],["花","huā","spend (money/time)"],["坏","huài","bad; broken"],["回来","huílái","come back"],["回去","huíqù","go back"],["间","jiān","room; measure word"],["教","jiāo","teach"],
+["教室","jiàoshì","classroom"],["机场","jīchǎng","airport"],["记得","jìde","remember"],["介绍","jièshào","introduce"],["近","jìn","near"],["进","jìn","enter"],["经常","jīngcháng","often"],["进来","jìnlái","come in"],["进去","jìnqù","go in"],
+["机票","jīpiào","plane ticket"],["就","jiù","just; then"],["酒店","jiǔdiàn","hotel"],["咖啡","kāfēi","coffee"],["开始","kāishǐ","start"],["开学","kāixué","start school"],["考","kǎo","test (verb)"],["考试","kǎoshì","exam"],["可能","kěnéng","maybe; possible"],["快","kuài","fast"],
+["快乐","kuàilè","happy"],["快要","kuàiyào","about to"],["裤子","kùzi","pants"],["篮球","lánqiú","basketball"],["累","lèi","tired"],["离","lí","from; away from"],["里面","lǐmiàn","inside"],["楼","lóu","building; floor"],["路","lù","road"],["绿茶","lǜchá","green tea"],["绿色","lǜsè","green"],
+["路上","lùshang","on the way"],["旅游","lǚyóu","travel"],["慢","màn","slow"],["每","měi","every"],["没意思","méi yìsi","boring"],["门","mén","door"],["门口","ménkǒu","doorway"],["门票","ménpiào","entrance ticket"],["面","miàn","side; surface"],["名","míng","name"],["拿","ná","take; hold"],
+["那","nà","that"],["奶茶","nǎichá","milk tea"],["奶奶","nǎinai","grandmother (paternal)"],["那么","nàme","so; like that"],["男孩儿","nánháir","boy"],["那样","nàyàng","like that"],["鸟","niǎo","bird"],["女孩儿","nǚháir","girl"],["旁边","pángbiān","beside"],["跑","pǎo","run"],
+["跑步","pǎobù","jog"],["票","piào","ticket"],["前面","qiánmiàn","in front"],["起来","qǐlái","get up; stand up"],["晴","qíng","sunny; clear"],["球","qiú","ball"],["妻子","qīzi","wife"],["让","ràng","let; allow"],["肉","ròu","meat"],["商场","shāngchǎng","shopping mall"],
+["上来","shànglái","come up"],["上面","shàngmiàn","above; on top"],["上去","shàngqù","go up"],["上网","shàngwǎng","go online"],["生日","shēngrì","birthday"],["身体","shēntǐ","body; health"],["时","shí","time"],
+["事情","shìqing","matter; thing"],["手","shǒu","hand"],["手表","shǒubiǎo","watch (wrist)"],["书包","shūbāo","schoolbag"],["舒服","shūfu","comfortable"],["送","sòng","give; send; deliver"],["虽然","suīrán","although"],["所以","suǒyǐ","so; therefore"],["疼","téng","hurt; painful"],["题","tí","question; problem"],
+["踢","tī","kick"],["条","tiáo","(measure word, long thin things)"],["跳舞","tiàowǔ","dance"],["头","tóu","head"],["外国","wàiguó","foreign country"],["外面","wàimiàn","outside"],["完","wán","finish"],["万","wàn","ten thousand"],["忘","wàng","forget"],["往","wǎng","toward"],["网上","wǎngshàng","online"],
+["位","wèi","(polite measure word for people)"],["为什么","wèishénme","why"],["洗","xǐ","wash"],["下来","xiàlái","come down"],["下面","xiàmiàn","below; next"],["笑","xiào","laugh; smile"],["小孩儿","xiǎoháir","child"],["小时候","xiǎoshíhou","childhood"],
+["下去","xiàqù","go down"],["姓","xìng","surname"],["姓名","xìngmíng","full name"],["洗手间","xǐshǒujiān","restroom"],["希望","xīwàng","hope"],["眼睛","yǎnjing","eyes"],["颜色","yánsè","color"],["药","yào","medicine"],
+["药店","yàodiàn","pharmacy"],["爷爷","yéye","grandfather (paternal)"],["一会儿","yíhuìr","a moment; a while"],["已经","yǐjīng","already"],["阴","yīn","overcast; cloudy"],["因为","yīnwèi","because"],["一起","yìqǐ","together"],["意思","yìsi","meaning"],["游","yóu","swim"],["右","yòu","right (direction)"],
+["右边","yòubian","right side"],["有时","yǒushí","sometimes"],["有意思","yǒu yìsi","interesting"],["游泳","yóuyǒng","swim"],["鱼","yú","fish"],["远","yuǎn","far"],["运动","yùndòng","sports; exercise"],["站","zhàn","stand; station"],
+["丈夫","zhàngfu","husband"],["着","zhe","(continuous action particle)"],["这么","zhème","so; like this"],["正","zhèng","exactly; just"],["这样","zhèyàng","like this"],["周","zhōu","week"],["准备","zhǔnbèi","prepare"],["自己","zìjǐ","oneself"],["走","zǒu","walk"],["走路","zǒulù","walk"],["最","zuì","most"],
+["左","zuǒ","left"],["左边","zuǒbian","left side"],["足球","zúqiú","football; soccer"]
+];

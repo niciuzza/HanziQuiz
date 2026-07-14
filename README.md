@@ -1,8 +1,9 @@
 # Chinese Vocab Builder
 
 A small self-hosted flashcard/quiz app for learning Mandarin vocabulary, built around
-two word lists (HSK1 and a textbook list you can label however you like, e.g. `ES1`)
-with support for adding your own words and tags.
+three built-in word lists (HSK1, HSK2, and a textbook list you can label however you
+like, e.g. `ES1`) with support for adding your own words and tags. Built-in lists are
+available directly on the Quiz page — no import step needed.
 
 Pure HTML/CSS/JS — no build step, no framework, no backend. Words are saved in the
 browser's `localStorage`, so progress is per-browser (clearing site data will reset it).
@@ -11,7 +12,7 @@ browser's `localStorage`, so progress is per-browser (clearing site data will re
 
 - `index.html` — page structure
 - `style.css` — styling (light/dark mode via `prefers-color-scheme`)
-- `data.js` — the HSK1 (300 words) and ES1 word list data
+- `data.js` — the HSK1, HSK2, and ES1 word list data
 - `script.js` — app logic: tagging, spaced-repetition-weighted quiz, pinyin syllable
   splitting, text-to-speech via the browser's built-in `SpeechSynthesis` API
 
@@ -64,7 +65,7 @@ occasional word may split oddly. If you spot one, the easiest fix is to add a
 
 - Swap `localStorage` for a real backend (e.g. a small SQLite/Express API, or
   Supabase) if you want progress to sync across devices.
-- Add HSK2+ word lists, or a CSV/JSON import for your own textbook lists.
+- Add HSK3+ word lists, or a CSV/JSON import for your own textbook lists.
 - Add a "due today" spaced-repetition view (e.g. SM-2 style scheduling) instead of
   the current wrong-answer weighting.
 - Export/import your word list as JSON so you can back it up or move it between

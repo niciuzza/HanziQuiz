@@ -1,5 +1,8 @@
 const STORAGE_KEY = 'hsk-vocab-words';
-let words = [];
+const STATS_KEY = 'hsk-vocab-stats';
+const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, ES1: FULL_ES1 };
+let words = []; // user's own custom words: { c, p, m, tags }
+let statsMap = {}; // key (c::m) -> { correct, wrong }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
 let activeTags = new Set();
 
@@ -58,14 +61,52 @@ function speak(text){
   } catch (e) {}
 }
 
-/* ---------- stats ---------- */
-function computeStats(){
-  const hskSet = new Set(FULL_HSK1.map(w => w[0] + '::' + w[2]));
-  let overlap = 0;
-  FULL_ES1.forEach(w => { if (hskSet.has(w[0] + '::' + w[2])) overlap++; });
-  const combinedUnique = FULL_HSK1.length + FULL_ES1.length - overlap;
+/* ---------- stats (per-word progress, keyed by character+meaning) ---------- */
+function statKey(c, m){ return c + '::' + m; }
+function getStats(c, m){ return statsMap[statKey(c, m)] || { correct: 0, wrong: 0 }; }
+function bumpStat(c, m, field){
+  const k = statKey(c, m);
+  if (!statsMap[k]) statsMap[k] = { correct: 0, wrong: 0 };
+  statsMap[k][field]++;
+  saveStats();
+}
+function loadStats(){
+  try {
+    const raw = localStorage.getItem(STATS_KEY);
+    statsMap = raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    statsMap = {};
+  }
+}
+function saveStats(){
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(statsMap)); } catch (e) {}
+}
+
+/* ---------- combined pool: built-in lists + user's custom words ---------- */
+function combinedPool(){
+  const map = new Map();
+  Object.entries(BUILTIN_LISTS).forEach(([tag, list]) => {
+    list.forEach(([c, p, m]) => {
+      const k = statKey(c, m);
+      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set() });
+      map.get(k).tags.add(tag);
+    });
+  });
+  words.forEach(w => {
+    const k = statKey(w.c, w.m);
+    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set() });
+    w.tags.forEach(t => map.get(k).tags.add(t));
+  });
+  return [...map.values()].map(w => {
+    const s = getStats(w.c, w.m);
+    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], correct: s.correct, wrong: s.wrong };
+  });
+}
+
+function updateStatsLine(){
+  const counts = Object.entries(BUILTIN_LISTS).map(([tag, list]) => `${tag}: ${list.length} words`).join(' · ');
   document.getElementById('statsLine').textContent =
-    `HSK1: ${FULL_HSK1.length} words · ES1: ${FULL_ES1.length} words · ${overlap} overlap · combined unique: ${combinedUnique}`;
+    `Built-in lists (pick on the Quiz page): ${counts}`;
 }
 
 /* ---------- storage ---------- */
@@ -77,47 +118,12 @@ function loadWords(){
     words = [];
   }
   words.forEach(w => { if (!w.tags) w.tags = [w.tag || 'untagged']; });
-  activeTags = new Set(words.flatMap(w => w.tags));
   renderList();
   renderTagOptions();
 }
 function saveWords(){
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(words)); } catch (e) {}
 }
-
-function importList(list, tag){
-  let added = 0, merged = 0;
-  list.forEach(([c, p, m]) => {
-    const existing = words.find(w => w.c === c && w.m === m);
-    if (existing) {
-      if (!existing.tags.includes(tag)) { existing.tags.push(tag); merged++; }
-    } else {
-      words.push({ c, p, m, tags: [tag], correct: 0, wrong: 0 });
-      added++;
-    }
-  });
-  return { added, merged };
-}
-
-document.getElementById('bulkBtnHSK').onclick = () => {
-  const { added, merged } = importList(FULL_HSK1, 'HSK1');
-  saveWords();
-  activeTags.add('HSK1');
-  renderList(); renderTagOptions();
-  let msg = added > 0 ? `added ${added} new words` : 'no new words';
-  if (merged > 0) msg += `, tagged ${merged} existing words as HSK1 too`;
-  document.getElementById('bulkMsg').textContent = `${msg} (${words.length} total)`;
-};
-
-document.getElementById('bulkBtnES1').onclick = () => {
-  const { added, merged } = importList(FULL_ES1, 'ES1');
-  saveWords();
-  activeTags.add('ES1');
-  renderList(); renderTagOptions();
-  let msg = added > 0 ? `added ${added} new words` : 'no new words';
-  if (merged > 0) msg += `, tagged ${merged} existing words as ES1 too`;
-  document.getElementById('bulkMsg').textContent = `${msg} (${words.length} total)`;
-};
 
 /* ---------- tags ---------- */
 function tagClass(tag){
@@ -127,7 +133,7 @@ function tagClass(tag){
 }
 
 function renderTagOptions(){
-  const tags = [...new Set(words.flatMap(w => w.tags))];
+  const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
   document.getElementById('tagOptions').innerHTML = tags.map(t => `<option value="${t}">`).join('');
   const filterRow = document.getElementById('tagFilterRow');
   filterRow.innerHTML = '';
@@ -154,13 +160,14 @@ function renderList(){
   const box = document.getElementById('wordList');
   box.innerHTML = '';
   if (words.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words yet — import a list above or add your own.</div>';
+    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Quiz page.</div>';
     return;
   }
   [...words].reverse().forEach(w => {
     const idx = words.indexOf(w);
-    const seen = w.correct + w.wrong;
-    const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
+    const { correct, wrong } = getStats(w.c, w.m);
+    const seen = correct + wrong;
+    const acc = seen > 0 ? Math.round(100 * correct / seen) : null;
     const badges = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join(' ');
     const row = document.createElement('div');
     row.className = 'word-row';
@@ -184,6 +191,12 @@ function renderList(){
   });
 }
 
+function findBuiltinTags(c){
+  return Object.entries(BUILTIN_LISTS)
+    .filter(([, list]) => list.some(([lc]) => lc === c))
+    .map(([tag]) => tag);
+}
+
 document.getElementById('addBtn').onclick = () => {
   const c = document.getElementById('inChar').value.trim();
   const p = document.getElementById('inPinyin').value.trim();
@@ -195,18 +208,23 @@ document.getElementById('addBtn').onclick = () => {
     return;
   }
   const existing = words.find(w => w.c === c && w.m === m);
+  let msgText;
   if (existing) {
     if (!existing.tags.includes(tag)) existing.tags.push(tag);
-    msg.textContent = `${c} already existed, tagged as ${tag} too`;
+    msgText = `${c} already existed, tagged as ${tag} too`;
   } else {
-    words.push({ c, p, m, tags: [tag], correct: 0, wrong: 0 });
-    msg.textContent = `added ${c} (${tag})`;
+    words.push({ c, p, m, tags: [tag] });
+    msgText = `added ${c} (${tag})`;
   }
+  const builtinTags = findBuiltinTags(c);
+  if (builtinTags.length) {
+    msgText += ` — heads up, ${c} is already in ${builtinTags.join(', ')}`;
+  }
+  msg.textContent = msgText;
   saveWords();
   document.getElementById('inChar').value = '';
   document.getElementById('inPinyin').value = '';
   document.getElementById('inMeaning').value = '';
-  activeTags.add(tag);
   renderList();
   renderTagOptions();
 };
@@ -222,13 +240,13 @@ function pickRandom(arr, n, exclude){
   return res;
 }
 
-function weightedPick(pool, exclude){
+function weightedPick(pool, excludeKey){
   const weights = pool.map(w => {
     const base = 1 + w.wrong * 2.5 - w.correct * 0.4;
     const clamped = Math.max(0.3, base);
     const jitter = 0.6 + Math.random() * 0.8;
     let val = clamped * jitter;
-    if (w === exclude) val *= 0.15;
+    if (excludeKey && statKey(w.c, w.m) === excludeKey) val *= 0.15;
     return val;
   });
   const totalW = weights.reduce((a, b) => a + b, 0);
@@ -243,7 +261,7 @@ function weightedPick(pool, exclude){
 function newQuestion(){
   const notEnough = document.getElementById('notEnough');
   document.getElementById('nextBtn').classList.add('hidden');
-  const pool = words.filter(w => w.tags.some(t => activeTags.has(t)));
+  const pool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
   if (pool.length < 4) {
     notEnough.textContent = 'select tags with at least 4 words total to quiz';
     document.getElementById('questionBox').classList.add('hidden');
@@ -258,7 +276,7 @@ function newQuestion(){
   feedback.className = 'feedback';
 
   const word = weightedPick(pool, lastWord);
-  lastWord = word;
+  lastWord = statKey(word.c, word.m);
   document.getElementById('qMain').textContent = word.c;
 
   const opts = document.getElementById('options');
@@ -289,12 +307,12 @@ function newQuestion(){
       total++;
       const isCorrect = (cw === word);
       if (isCorrect) {
-        score++; streak++; word.correct++;
+        score++; streak++; bumpStat(word.c, word.m, 'correct');
         mainBtn.classList.add('correct');
         feedback.textContent = `✓ correct — ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
         feedback.className = 'feedback correct';
       } else {
-        streak = 0; word.wrong++;
+        streak = 0; bumpStat(word.c, word.m, 'wrong');
         mainBtn.classList.add('wrong');
         feedback.textContent = `✗ answer: ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
         feedback.className = 'feedback wrong';
@@ -303,7 +321,6 @@ function newQuestion(){
         b2.disabled = true;
         if (choiceWords[i2] === word && !isCorrect) b2.classList.add('correct');
       });
-      saveWords();
       document.getElementById('scoreOut').textContent = `${score} / ${total}`;
       document.getElementById('streakOut').textContent = streak;
       document.getElementById('nextBtn').classList.remove('hidden');
@@ -334,5 +351,7 @@ document.querySelectorAll('.tab-btn').forEach(b => {
 });
 
 /* ---------- init ---------- */
-computeStats();
+updateStatsLine();
+loadStats();
+activeTags = new Set(Object.keys(BUILTIN_LISTS));
 loadWords();
