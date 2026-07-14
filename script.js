@@ -14,6 +14,7 @@ const UNSEEN_BONUS = 8; // weight multiplier for words never asked before (corre
 let roundSize = 'all'; // 25|50|100|150|200|250|'all' — how many unique words make up the current round
 let roundKeys = null; // array of statKeys in the current round, or null if not yet rolled
 const ROUND_SIZES = [25, 50, 100, 150, 200, 250];
+let progressTags = new Set(); // Progress tab list filter; empty means "all lists"
 
 /* ---------- pinyin syllable splitting ---------- */
 const CAP_TONE = /[ĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙǕǗǙǛ]/;
@@ -365,8 +366,36 @@ function buildWordRow(w){
   return row;
 }
 
+function renderProgressTagOptions(){
+  const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
+  // drop selected tags that no longer exist (e.g. after deleting the last custom word with that tag)
+  progressTags.forEach(t => { if (!tags.includes(t)) progressTags.delete(t); });
+  const row = document.getElementById('progressFilterRow');
+  row.innerHTML = '';
+  tags.forEach(t => {
+    const btn = document.createElement('button');
+    btn.textContent = t;
+    const cls = tagClass(t);
+    const refresh = () => {
+      btn.className = progressTags.has(t) ? `active ${cls}` : '';
+    };
+    btn.onclick = () => {
+      if (progressTags.has(t)) progressTags.delete(t); else progressTags.add(t);
+      refresh();
+      renderProgress();
+    };
+    refresh();
+    row.appendChild(btn);
+  });
+}
+
+function progressPool(){
+  return combinedPool().filter(w => progressTags.size === 0 || w.tags.some(t => progressTags.has(t)));
+}
+
 function renderProgress(){
-  const pool = combinedPool();
+  renderProgressTagOptions();
+  const pool = progressPool();
   const wrongWords = pool.filter(w => w.wrong > 0).sort((a, b) => b.wrong - a.wrong);
   const dontKnowWords = pool.filter(w => w.dontknow > 0).sort((a, b) => b.dontknow - a.dontknow);
 
@@ -385,12 +414,17 @@ function renderProgress(){
   } else {
     dontKnowWords.forEach(w => dkBox.appendChild(buildWordRow(w)));
   }
+
+  document.getElementById('resetProgressBtn').textContent = progressTags.size === 0
+    ? 'Reset all progress'
+    : `Reset progress for ${[...progressTags].join(', ')}`;
 }
 
 document.getElementById('resetProgressBtn').onclick = () => {
-  const ok = confirm('Reset all quiz progress? This clears every word\'s correct/wrong/"don\'t know" history across every list. This can\'t be undone.');
+  const scopeLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
+  const ok = confirm(`Reset quiz progress for ${scopeLabel}? This clears correct/wrong/"don't know" history for those words. This can't be undone.`);
   if (!ok) return;
-  statsMap = {};
+  progressPool().forEach(w => { delete statsMap[statKey(w.c, w.m)]; });
   saveStats();
   renderProgress();
 };
