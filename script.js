@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'hsk-vocab-words';
 const STATS_KEY = 'hsk-vocab-stats';
+const SESSION_KEY = 'hsk-vocab-session';
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong }, covers built-in + custom words
@@ -7,6 +8,7 @@ let score = 0, total = 0, streak = 0, lastWord = null;
 let activeTags = new Set();
 let listSearch = '';
 let listFilterTags = new Set();
+let overlapOnly = false;
 
 /* ---------- pinyin syllable splitting ---------- */
 const CAP_TONE = /[ĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙǕǗǙǛ]/;
@@ -84,6 +86,24 @@ function saveStats(){
   try { localStorage.setItem(STATS_KEY, JSON.stringify(statsMap)); } catch (e) {}
 }
 
+/* ---------- session (score/streak + which lists are active, so a reload resumes the game) ---------- */
+function loadSession(){
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    score = s.score || 0;
+    total = s.total || 0;
+    streak = s.streak || 0;
+    if (Array.isArray(s.activeTags) && s.activeTags.length) activeTags = new Set(s.activeTags);
+  } catch (e) {}
+}
+function saveSession(){
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ score, total, streak, activeTags: [...activeTags] }));
+  } catch (e) {}
+}
+
 /* ---------- combined pool: built-in lists + user's custom words ---------- */
 function combinedPool(){
   const map = new Map();
@@ -130,7 +150,8 @@ function saveWords(){
 
 /* ---------- tags ---------- */
 function tagClass(tag){
-  if (tag.startsWith('HSK')) return 'hsk';
+  if (tag === 'HSK1') return 'hsk1';
+  if (tag === 'HSK2') return 'hsk2';
   if (tag.startsWith('ES')) return 'es';
   return 'other';
 }
@@ -150,6 +171,7 @@ function renderTagOptions(){
     btn.onclick = () => {
       if (activeTags.has(t)) activeTags.delete(t); else activeTags.add(t);
       refresh();
+      saveSession();
       newQuestion();
     };
     refresh();
@@ -158,11 +180,23 @@ function renderTagOptions(){
 }
 
 /* ---------- word list ---------- */
+// if 2+ built-in list tags (HSK1/HSK2/ES1) are selected in the filter row, "overlap" means
+// present in every one of those selected lists; otherwise it falls back to present in any 2+
+// of all built-in lists
+function isOverlap(w){
+  const selected = [...listFilterTags].filter(t => BUILTIN_LISTS[t]);
+  if (selected.length >= 2) return selected.every(t => w.tags.includes(t));
+  return Object.keys(BUILTIN_LISTS).filter(t => w.tags.includes(t)).length >= 2;
+}
+function countOverlaps(){
+  return combinedPool().filter(isOverlap).length;
+}
+
 function renderListFilterOptions(){
-  const tags = [...new Set(words.flatMap(w => w.tags))];
+  const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
   const filterRow = document.getElementById('listFilterRow');
   filterRow.innerHTML = '';
-  // drop selected tags that no longer exist (e.g. after deleting the last word with that tag)
+  // drop selected tags that no longer exist (e.g. after deleting the last custom word with that tag)
   listFilterTags.forEach(t => { if (!tags.includes(t)) listFilterTags.delete(t); });
   tags.forEach(t => {
     const btn = document.createElement('button');
@@ -182,24 +216,29 @@ function renderListFilterOptions(){
 }
 
 function renderList(){
+  document.getElementById('overlapCount').textContent = `(${countOverlaps()})`;
   const query = listSearch.trim();
   const hasQuery = query.length > 0;
+  const hasFilter = listFilterTags.size > 0;
+  const expanded = hasQuery || hasFilter || overlapOnly;
   const q = detone(query); // lowercases + strips tone marks; a no-op for Chinese characters
-  // with no search text, show only your own custom words; once you search, look across built-in lists too
-  const source = hasQuery
+  // with no search text, tag filter, or overlap toggle, show only your own custom words;
+  // any of those look across the built-in lists (HSK1/HSK2/ES1) too
+  const source = expanded
     ? combinedPool()
     : words.map(w => { const s = getStats(w.c, w.m); return { c: w.c, p: w.p, m: w.m, tags: w.tags, correct: s.correct, wrong: s.wrong }; });
   const filtered = source.filter(w => {
+    if (overlapOnly && !isOverlap(w)) return false;
     if (listFilterTags.size && !w.tags.some(t => listFilterTags.has(t))) return false;
     if (!hasQuery) return true;
     return w.c.includes(query) || detone(w.p).includes(q) || w.m.toLowerCase().includes(q);
   });
-  document.getElementById('countLabel').textContent = hasQuery
+  document.getElementById('countLabel').textContent = expanded
     ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'} across all lists`
     : `${filtered.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'} shown`;
   const box = document.getElementById('wordList');
   box.innerHTML = '';
-  if (!hasQuery && words.length === 0) {
+  if (!expanded && words.length === 0) {
     box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Quiz page.</div>';
     return;
   }
@@ -218,9 +257,11 @@ function renderList(){
       <span class="char">${w.c}</span>
       <span class="pinyin">${spacedPinyin(w.p)}</span>
       <span class="meaning">${w.m}</span>
-      <span class="tags">${badges}</span>
-      <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
-      ${idx !== -1 ? `<button class="del-btn" data-idx="${idx}" aria-label="Delete">✕</button>` : '<span class="del-btn-spacer"></span>'}
+      <span class="row-meta">
+        <span class="tags">${badges}</span>
+        <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
+        ${idx !== -1 ? `<button class="del-btn" data-idx="${idx}" aria-label="Delete">✕</button>` : '<span class="del-btn-spacer"></span>'}
+      </span>
     `;
     box.appendChild(row);
   });
@@ -237,6 +278,11 @@ function renderList(){
 
 document.getElementById('searchWord').oninput = (e) => {
   listSearch = e.target.value;
+  renderList();
+};
+
+document.getElementById('overlapOnly').onchange = (e) => {
+  overlapOnly = e.target.checked;
   renderList();
 };
 
@@ -312,6 +358,7 @@ function newQuestion(){
   const notEnough = document.getElementById('notEnough');
   document.getElementById('nextBtn').classList.add('hidden');
   const pool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  document.getElementById('poolCount').textContent = `${pool.length} ${pool.length === 1 ? 'word' : 'words'} chosen`;
   if (pool.length < 4) {
     notEnough.textContent = 'select tags with at least 4 words total to quiz';
     document.getElementById('questionBox').classList.add('hidden');
@@ -374,6 +421,7 @@ function newQuestion(){
       document.getElementById('scoreOut').textContent = `${score} / ${total}`;
       document.getElementById('streakOut').textContent = streak;
       document.getElementById('nextBtn').classList.remove('hidden');
+      saveSession();
     };
 
     row.appendChild(mainBtn);
@@ -404,4 +452,7 @@ document.querySelectorAll('.tab-btn').forEach(b => {
 updateStatsLine();
 loadStats();
 activeTags = new Set(Object.keys(BUILTIN_LISTS));
+loadSession(); // may override score/total/streak/activeTags with a resumed session
+document.getElementById('scoreOut').textContent = `${score} / ${total}`;
+document.getElementById('streakOut').textContent = streak;
 loadWords();

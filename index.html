@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chinese Vocab Builder — HSK1 / ES1</title>
+<title>Chinese Vocab Builder — HSK1 / HSK2 / ES1</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,6 +31,11 @@
       <div class="list-controls">
         <input id="searchWord" type="search" placeholder="Search all lists — character, pinyin (tone marks optional), or meaning…">
         <div class="tag-filter-row" id="listFilterRow"></div>
+        <label class="overlap-toggle">
+          <input type="checkbox" id="overlapOnly">
+          Show only words that overlap between lists
+          <span class="overlap-count" id="overlapCount"></span>
+        </label>
       </div>
       <p class="count-label" id="countLabel">0 words saved</p>
       <div class="word-list" id="wordList"></div>
@@ -39,6 +44,7 @@
     <section id="quizPane" class="hidden">
       <p class="section-label">Practice from:</p>
       <div class="tag-filter-row" id="tagFilterRow"></div>
+      <p class="pool-count" id="poolCount"></p>
 
       <div class="stat-row">
         <div class="stat-card">
