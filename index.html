@@ -3,34 +3,114 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chinese Vocab Builder — HSK1 / HSK2 / HSK3 / HSK4 / ES1</title>
+<title>Chinese Word Quiz — HSK1 / HSK2 / HSK3 / HSK4 / ES1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Noto+Sans+SC:wght@500;700&display=swap" rel="stylesheet">
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
   <div class="app">
-    <h1>Chinese Vocab Builder</h1>
 
-    <div class="tab-row">
-      <button class="tab-btn active" data-tab="add">Add words</button>
-      <button class="tab-btn" data-tab="quiz">Quiz me</button>
-      <button class="tab-btn" data-tab="progress">Progress</button>
-    </div>
-
-    <section id="addPane">
-      <p class="stats-line" id="statsLine"></p>
-
-      <div class="add-form">
-        <input id="inChar" placeholder="你好">
-        <input id="inPinyin" placeholder="nǐhǎo">
-        <input id="inMeaning" placeholder="hello">
-        <input id="inTag" placeholder="my-list" list="tagOptions">
-        <datalist id="tagOptions"></datalist>
-        <button id="addBtn">+</button>
+    <!-- ============ HOME ============ -->
+    <section id="homeScreen">
+      <div class="screen-header-end">
+        <button class="icon-btn" id="homeSettingsBtn" aria-label="Settings">⚙️</button>
       </div>
-      <p class="msg" id="addMsg"></p>
+      <div class="home-title">
+        <h1>Chinese Word Quiz</h1>
+        <p class="home-subtitle">Guess the meaning, hear the pronunciation</p>
+      </div>
+
+      <p class="section-label">How many words to play?</p>
+      <div class="tag-filter-row" id="roundSizeRow"></div>
+
+      <p class="section-label">Word lists</p>
+      <div class="tag-filter-row" id="tagFilterRow"></div>
+      <p class="pool-count" id="poolCount"></p>
+
+      <button id="startBtn" class="primary-btn">Start</button>
+    </section>
+
+    <!-- ============ QUIZ ============ -->
+    <section id="quizScreen" class="hidden">
+      <div class="screen-header-between">
+        <div class="quiz-header-left">
+          <button class="icon-btn" id="quizExitBtn" aria-label="Exit quiz">✕</button>
+          <button class="icon-btn" id="quizSettingsBtn" aria-label="Settings">⚙️</button>
+        </div>
+        <div class="quiz-score">Score <span id="scoreOut">0</span></div>
+      </div>
+
+      <div class="quiz-progress-row">
+        <div class="progress-track"><div class="progress-fill" id="quizProgressFill"></div></div>
+        <span class="progress-pos" id="quizPositionText"></span>
+      </div>
+
+      <div class="question-box" id="questionBox">
+        <div class="q-tags" id="qTags"></div>
+        <div class="q-main" id="qMain">-</div>
+        <p class="feedback" id="feedback"></p>
+        <p class="q-prompt">What does this word mean?</p>
+      </div>
+
+      <div class="options" id="options"></div>
+      <button id="dontKnowBtn" class="dont-know-link">🤷 I don't know</button>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section id="resultsScreen" class="hidden">
+      <p class="results-label">Round complete</p>
+      <div class="score-circle" id="scoreCircle">
+        <span class="score-num" id="resultScore">0</span><span class="score-circle-total" id="resultTotal">/0</span>
+      </div>
+      <div class="results-missed">
+        <p class="section-label" id="missedTitle">Missed this round</p>
+        <div class="word-list" id="missedList"></div>
+      </div>
+      <div class="results-actions">
+        <button id="playAgainBtn" class="primary-btn">Play Again</button>
+        <button id="newRoundBtn" class="outline-btn">New Round</button>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS (menu) ============ -->
+    <section id="settingsScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="settingsBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Settings</span>
+      </div>
+
+      <div class="settings-menu">
+        <button class="settings-menu-item" id="openWordDecksBtn">
+          <span>Word decks</span>
+          <span class="menu-chevron">›</span>
+        </button>
+        <button class="settings-menu-item" id="openMyProgressBtn">
+          <span>My progress</span>
+          <span class="menu-chevron">›</span>
+        </button>
+        <div class="settings-menu-item">
+          <span>Dark mode</span>
+          <button class="toggle-switch" id="darkModeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WORD DECKS ============ -->
+    <section id="wordDecksScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="wordDecksBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Word decks</span>
+      </div>
+
+      <p class="section-label">Word decks</p>
+      <div class="tag-filter-row" id="deckTagFilterRow"></div>
+
+      <button class="add-word-btn" id="openAddWordBtn">+ Add new word</button>
 
       <div class="list-controls">
         <input id="searchWord" type="search" placeholder="Search all lists — character, pinyin (tone marks optional), or meaning…">
@@ -45,51 +125,14 @@
       <div class="word-list" id="wordList"></div>
     </section>
 
-    <section id="quizPane" class="hidden">
-      <p class="section-label">Practice from:</p>
-      <div class="tag-filter-row" id="tagFilterRow"></div>
-      <p class="section-label">Round size:</p>
-      <div class="tag-filter-row" id="roundSizeRow"></div>
-      <p class="pool-count" id="poolCount"></p>
-
-      <div class="stat-row">
-        <div class="stat-card">
-          <div class="stat-label">Score</div>
-          <div class="stat-value" id="scoreOut">0 / 0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Streak</div>
-          <div class="stat-value" id="streakOut">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Done</div>
-          <div class="stat-value" id="doneCount">0 / 0</div>
-        </div>
+    <!-- ============ MY PROGRESS ============ -->
+    <section id="myProgressScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="myProgressBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">My progress</span>
       </div>
 
-      <div class="question-box" id="questionBox">
-        <div class="q-main" id="qMain">-</div>
-        <p class="feedback" id="feedback"></p>
-      </div>
-
-      <div class="congrats-box hidden" id="congratsBox">
-        <div class="congrats-emoji">🎉</div>
-        <h2>You've answered every word correctly!</h2>
-        <p class="congrats-summary" id="congratsSummary"></p>
-        <div class="congrats-actions">
-          <button id="resetPoolBtn" class="next-btn">Reset &amp; play again</button>
-          <button id="keepReviewingBtn">Keep reviewing</button>
-        </div>
-      </div>
-
-      <div class="options" id="options"></div>
-      <button id="dontKnowBtn" class="dont-know-btn hidden">I don't know</button>
-      <button id="nextBtn" class="next-btn hidden">Next question →</button>
-      <p class="not-enough" id="notEnough"></p>
-    </section>
-
-    <section id="progressPane" class="hidden">
-      <p class="section-label">Filter by list:</p>
+      <p class="section-label">Filter progress by list</p>
       <div class="tag-filter-row" id="progressFilterRow"></div>
       <button id="resetProgressBtn" class="reset-progress-btn">Reset all progress</button>
       <p class="section-label">Words you've gotten wrong</p>
@@ -97,9 +140,44 @@
       <p class="section-label" style="margin-top:20px;">Words you've marked "I don't know"</p>
       <div class="word-list" id="dontKnowList"></div>
     </section>
+
+    <!-- ============ ADD WORD ============ -->
+    <section id="addWordScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="addWordBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Add new word</span>
+      </div>
+
+      <div class="add-word-form">
+        <div>
+          <div class="field-label">Chinese characters</div>
+          <input id="inChar" class="hanzi-input" placeholder="e.g. 谢谢">
+        </div>
+        <div>
+          <div class="field-label">Pinyin</div>
+          <input id="inPinyin" placeholder="e.g. xièxie">
+        </div>
+        <div>
+          <div class="field-label">Meaning (English)</div>
+          <input id="inMeaning" placeholder="e.g. thank you">
+        </div>
+        <div>
+          <div class="field-label">List</div>
+          <div class="tag-filter-row" id="addWordLevelRow"></div>
+          <input id="inTag" placeholder="or type a custom list name" list="tagOptions">
+          <datalist id="tagOptions"></datalist>
+        </div>
+      </div>
+      <p class="msg" id="addMsg"></p>
+      <div class="add-word-actions">
+        <button id="cancelAddWordBtn" class="outline-btn">Cancel</button>
+        <button id="addBtn" class="primary-btn">Save word</button>
+      </div>
+    </section>
+
   </div>
 
-  <script src="data.js?v=12"></script>
-  <script src="script.js?v=12"></script>
+  <script src="data.js?v=16"></script>
+  <script src="script.js?v=16"></script>
 </body>
 </html>

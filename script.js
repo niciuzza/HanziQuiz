@@ -1,20 +1,23 @@
 const STORAGE_KEY = 'hsk-vocab-words';
 const STATS_KEY = 'hsk-vocab-stats';
 const SESSION_KEY = 'hsk-vocab-session';
+const THEME_KEY = 'hsk-vocab-theme';
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
-let statsMap = {}; // key (c::m) -> { correct, wrong }, covers built-in + custom words
+let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
 let activeTags = new Set();
 let listSearch = '';
 let listFilterTags = new Set();
 let overlapOnly = false;
-let reviewMode = false; // when true, skip the congrats gate even if every word in the pool has been seen
 const UNSEEN_BONUS = 8; // weight multiplier for words never asked before (correct+wrong+dontknow === 0)
 let roundSize = 'all'; // 25|50|100|150|200|250|'all' — how many unique words make up the current round
 let roundKeys = null; // array of statKeys in the current round, or null if not yet rolled
 const ROUND_SIZES = [25, 50, 100, 150, 200, 250];
-let progressTags = new Set(); // Progress tab list filter; empty means "all lists"
+let progressTags = new Set(); // Settings' progress-list filter; empty means "all lists"
+let darkMode = false;
+let screen = 'home'; // 'home' | 'quiz' | 'results' | 'settings' | 'addWord'
+let screenBeforeSettings = 'home';
 
 /* ---------- pinyin syllable splitting ---------- */
 const CAP_TONE = /[ĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙǕǗǙǛ]/;
@@ -71,6 +74,24 @@ function speak(text){
   } catch (e) {}
 }
 
+/* ---------- theme (manual dark-mode toggle, overrides system preference) ---------- */
+function loadTheme(){
+  const saved = localStorage.getItem(THEME_KEY);
+  darkMode = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme();
+}
+function applyTheme(){
+  document.documentElement.dataset.theme = darkMode ? 'dark' : 'light';
+  const toggle = document.getElementById('darkModeToggle');
+  toggle.classList.toggle('on', darkMode);
+  toggle.setAttribute('aria-checked', String(darkMode));
+}
+function toggleDarkMode(){
+  darkMode = !darkMode;
+  try { localStorage.setItem(THEME_KEY, darkMode ? 'dark' : 'light'); } catch (e) {}
+  applyTheme();
+}
+
 /* ---------- stats (per-word progress, keyed by character+meaning) ---------- */
 function statKey(c, m){ return c + '::' + m; }
 function getStats(c, m){
@@ -85,6 +106,12 @@ function bumpStat(c, m, field){
   statsMap[k][field]++;
   saveStats();
 }
+function clearWordStat(c, m, field){
+  const k = statKey(c, m);
+  if (!statsMap[k]) return;
+  statsMap[k][field] = 0;
+  saveStats();
+}
 function loadStats(){
   try {
     const raw = localStorage.getItem(STATS_KEY);
@@ -97,7 +124,7 @@ function saveStats(){
   try { localStorage.setItem(STATS_KEY, JSON.stringify(statsMap)); } catch (e) {}
 }
 
-/* ---------- session (score/streak + which lists are active, so a reload resumes the game) ---------- */
+/* ---------- session (score/streak + which lists/round are active, so a reload resumes the game) ---------- */
 function loadSession(){
   try {
     const raw = localStorage.getItem(SESSION_KEY);
@@ -165,10 +192,22 @@ function resolveRoundPool(taggedPool){
   return resolved;
 }
 
-function updateStatsLine(){
-  const counts = Object.entries(BUILTIN_LISTS).map(([tag, list]) => `${tag}: ${list.length} words`).join(' · ');
-  document.getElementById('statsLine').textContent =
-    `Built-in lists (pick on the Quiz page): ${counts}`;
+/* ---------- per-list accent tint (drives question card, level chip, progress bar, buttons) ---------- */
+const TINT_VARS = {
+  hsk1: { bg: '--accent-bg', solid: '--accent-solid' },
+  hsk2: { bg: '--hsk2-bg', solid: '--hsk2-text' },
+  hsk3: { bg: '--hsk3-bg', solid: '--hsk3-text' },
+  hsk4: { bg: '--hsk4-bg', solid: '--hsk4-text' },
+  es: { bg: '--success-bg', solid: '--success-text' },
+  other: { bg: '--surface-1', solid: '--accent-solid' },
+};
+function primaryTag(tags){
+  const order = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'ES1'];
+  for (const t of order) if (tags.includes(t)) return t;
+  return tags[0] || null;
+}
+function tintOf(tag){
+  return TINT_VARS[tag ? tagClass(tag) : 'hsk1'];
 }
 
 /* ---------- storage ---------- */
@@ -199,10 +238,15 @@ function tagClass(tag){
   return 'other';
 }
 
+// renders the deck-chip row on both Home (#tagFilterRow) and Word Decks (#deckTagFilterRow),
+// keeping them in sync since they share the same activeTags state
 function renderTagOptions(){
   const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
   document.getElementById('tagOptions').innerHTML = tags.map(t => `<option value="${t}">`).join('');
-  const filterRow = document.getElementById('tagFilterRow');
+  ['tagFilterRow', 'deckTagFilterRow'].forEach(id => renderTagRow(id, tags));
+}
+function renderTagRow(containerId, tags){
+  const filterRow = document.getElementById(containerId);
   filterRow.innerHTML = '';
   tags.forEach(t => {
     const btn = document.createElement('button');
@@ -213,12 +257,11 @@ function renderTagOptions(){
     };
     btn.onclick = () => {
       if (activeTags.has(t)) activeTags.delete(t); else activeTags.add(t);
-      refresh();
-      reviewMode = false;
       roundKeys = null;
       saveSession();
+      renderTagOptions();
       renderRoundSizeOptions();
-      newQuestion();
+      updateHomePoolCount();
     };
     refresh();
     filterRow.appendChild(btn);
@@ -245,14 +288,30 @@ function renderRoundSizeOptions(){
       roundKeys = null;
       saveSession();
       renderRoundSizeOptions();
-      newQuestion();
     };
     refresh();
     row.appendChild(btn);
   });
 }
 
-/* ---------- word list ---------- */
+function updateHomePoolCount(){
+  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const poolCountEl = document.getElementById('poolCount');
+  const startBtn = document.getElementById('startBtn');
+  if (taggedPool.length < 4) {
+    poolCountEl.textContent = 'Select word lists with at least 4 words total to play';
+    poolCountEl.classList.add('warning');
+  } else {
+    poolCountEl.textContent = `${taggedPool.length} words available in selected lists`;
+    poolCountEl.classList.remove('warning');
+  }
+  startBtn.disabled = taggedPool.length < 4;
+  const tv = tintOf(primaryTag([...activeTags]));
+  startBtn.style.background = `var(${tv.solid})`;
+  startBtn.style.borderColor = `var(${tv.solid})`;
+}
+
+/* ---------- word list (Settings: your own custom words) ---------- */
 // if 2+ built-in list tags (HSK1/HSK2/ES1) are selected in the filter row, "overlap" means
 // present in every one of those selected lists; otherwise it falls back to present in any 2+
 // of all built-in lists
@@ -296,7 +355,7 @@ function renderList(){
   const expanded = hasQuery || hasFilter || overlapOnly;
   const q = detone(query); // lowercases + strips tone marks; a no-op for Chinese characters
   // with no search text, tag filter, or overlap toggle, show only your own custom words;
-  // any of those look across the built-in lists (HSK1/HSK2/ES1) too
+  // any of those look across the built-in lists too
   const source = expanded
     ? combinedPool()
     : words.map(w => { const s = getStats(w.c, w.m); return { c: w.c, p: w.p, m: w.m, tags: w.tags, correct: s.correct, wrong: s.wrong }; });
@@ -312,7 +371,7 @@ function renderList(){
   const box = document.getElementById('wordList');
   box.innerHTML = '';
   if (!expanded && words.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Quiz page.</div>';
+    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Home screen.</div>';
     return;
   }
   if (filtered.length === 0) {
@@ -345,12 +404,13 @@ function renderList(){
       renderList();
       renderListFilterOptions();
       renderTagOptions();
+      renderRoundSizeOptions();
     };
   });
 }
 
 /* ---------- progress: words ever answered wrong / marked "I don't know", across all lists ---------- */
-function buildWordRow(w){
+function buildWordRow(w, clearField){
   const seen = w.correct + w.wrong;
   const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
   const badges = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join(' ');
@@ -364,7 +424,14 @@ function buildWordRow(w){
       <span class="tags">${badges}</span>
       <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
     </span>
+    ${clearField ? '<button class="del-btn" aria-label="Clear">✕</button>' : ''}
   `;
+  if (clearField) {
+    row.querySelector('.del-btn').onclick = () => {
+      clearWordStat(w.c, w.m, clearField);
+      renderProgress();
+    };
+  }
   return row;
 }
 
@@ -406,7 +473,7 @@ function renderProgress(){
   if (wrongWords.length === 0) {
     wrongBox.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No wrong answers yet — nice!</div>';
   } else {
-    wrongWords.forEach(w => wrongBox.appendChild(buildWordRow(w)));
+    wrongWords.forEach(w => wrongBox.appendChild(buildWordRow(w, 'wrong')));
   }
 
   const dkBox = document.getElementById('dontKnowList');
@@ -414,7 +481,7 @@ function renderProgress(){
   if (dontKnowWords.length === 0) {
     dkBox.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">Nothing marked "I don\'t know" yet.</div>';
   } else {
-    dontKnowWords.forEach(w => dkBox.appendChild(buildWordRow(w)));
+    dontKnowWords.forEach(w => dkBox.appendChild(buildWordRow(w, 'dontknow')));
   }
 
   document.getElementById('resetProgressBtn').textContent = progressTags.size === 0
@@ -441,10 +508,32 @@ document.getElementById('overlapOnly').onchange = (e) => {
   renderList();
 };
 
-function findBuiltinTags(c){
-  return Object.entries(BUILTIN_LISTS)
-    .filter(([, list]) => list.some(([lc]) => lc === c))
-    .map(([tag]) => tag);
+/* ---------- add word ---------- */
+function renderAddWordLevelOptions(){
+  const row = document.getElementById('addWordLevelRow');
+  row.innerHTML = '';
+  const current = document.getElementById('inTag').value.trim();
+  ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'ES1'].forEach(t => {
+    const btn = document.createElement('button');
+    btn.textContent = t;
+    const cls = tagClass(t);
+    btn.className = current === t ? `active ${cls}` : '';
+    btn.onclick = () => {
+      document.getElementById('inTag').value = t;
+      renderAddWordLevelOptions();
+    };
+    row.appendChild(btn);
+  });
+}
+document.getElementById('inTag').addEventListener('input', renderAddWordLevelOptions);
+
+function resetAddWordForm(){
+  document.getElementById('inChar').value = '';
+  document.getElementById('inPinyin').value = '';
+  document.getElementById('inMeaning').value = '';
+  document.getElementById('inTag').value = '';
+  document.getElementById('addMsg').textContent = '';
+  renderAddWordLevelOptions();
 }
 
 document.getElementById('addBtn').onclick = () => {
@@ -454,30 +543,27 @@ document.getElementById('addBtn').onclick = () => {
   const tag = document.getElementById('inTag').value.trim() || 'untagged';
   const msg = document.getElementById('addMsg');
   if (!c || !p || !m) {
-    msg.textContent = 'fill in character, pinyin, and meaning';
+    msg.textContent = 'Fill in all fields first.';
     return;
   }
   const existing = words.find(w => w.c === c && w.m === m);
-  let msgText;
   if (existing) {
     if (!existing.tags.includes(tag)) existing.tags.push(tag);
-    msgText = `${c} already existed, tagged as ${tag} too`;
   } else {
     words.push({ c, p, m, tags: [tag] });
-    msgText = `added ${c} (${tag})`;
   }
-  const builtinTags = findBuiltinTags(c);
-  if (builtinTags.length) {
-    msgText += ` — heads up, ${c} is already in ${builtinTags.join(', ')}`;
-  }
-  msg.textContent = msgText;
   saveWords();
-  document.getElementById('inChar').value = '';
-  document.getElementById('inPinyin').value = '';
-  document.getElementById('inMeaning').value = '';
+  resetAddWordForm();
   renderList();
   renderListFilterOptions();
   renderTagOptions();
+  renderRoundSizeOptions();
+  showScreen('wordDecks');
+};
+
+document.getElementById('cancelAddWordBtn').onclick = () => {
+  resetAddWordForm();
+  showScreen('wordDecks');
 };
 
 /* ---------- quiz logic ---------- */
@@ -510,59 +596,39 @@ function weightedPick(pool, excludeKey){
   return pool[pool.length - 1];
 }
 
-function showCongrats(pool){
-  document.getElementById('questionBox').classList.add('hidden');
-  document.getElementById('options').innerHTML = '';
-  document.getElementById('feedback').textContent = '';
-  document.getElementById('dontKnowBtn').classList.add('hidden');
-  document.getElementById('nextBtn').classList.add('hidden');
-  document.getElementById('notEnough').textContent = '';
-  const pct = total > 0 ? Math.round(100 * score / total) : 0;
-  document.getElementById('congratsSummary').textContent =
-    `${pool.length} words · score ${score} / ${total} (${pct}%) this session`;
-  document.getElementById('congratsBox').classList.remove('hidden');
-}
-function hideCongrats(){
-  document.getElementById('congratsBox').classList.add('hidden');
-}
-
 function newQuestion(){
-  const notEnough = document.getElementById('notEnough');
-  document.getElementById('nextBtn').classList.add('hidden');
   const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
-  const pool = resolveRoundPool(taggedPool);
-  document.getElementById('poolCount').textContent = `${pool.length} ${pool.length === 1 ? 'word' : 'words'} chosen`;
-  const done = doneCount(pool);
-  document.getElementById('doneCount').textContent = `${done} / ${pool.length} words done`;
   if (taggedPool.length < 4) {
-    hideCongrats();
-    notEnough.textContent = 'select tags with at least 4 words total to quiz';
-    document.getElementById('questionBox').classList.add('hidden');
-    document.getElementById('options').innerHTML = '';
-    document.getElementById('feedback').textContent = '';
-    document.getElementById('dontKnowBtn').classList.add('hidden');
+    // shouldn't normally reach the quiz screen in this state (Home disables Start), but bail out safely
+    showScreen('home');
     return;
   }
-  if (done === pool.length && !reviewMode) {
-    showCongrats(pool);
+  const pool = resolveRoundPool(taggedPool);
+  const done = doneCount(pool);
+  document.getElementById('quizPositionText').textContent = `${done} / ${pool.length}`;
+  document.getElementById('quizProgressFill').style.width = pool.length ? `${(done / pool.length) * 100}%` : '0%';
+  document.getElementById('scoreOut').textContent = score;
+
+  // once a word is answered correctly it's "done" and stops appearing as a question this round;
+  // wrong/don't-know words keep coming back until they're answered correctly
+  if (done === pool.length) {
+    showScreen('results');
     return;
   }
-  hideCongrats();
-  notEnough.textContent = '';
-  document.getElementById('questionBox').classList.remove('hidden');
+
   const feedback = document.getElementById('feedback');
   feedback.textContent = '';
   feedback.className = 'feedback';
   const dontKnowBtn = document.getElementById('dontKnowBtn');
-  dontKnowBtn.classList.remove('hidden');
   dontKnowBtn.disabled = false;
 
-  // once a word is answered correctly it stops appearing as a question this round;
-  // in review mode everything stays eligible (old spaced-repetition weighting)
-  const candidates = reviewMode ? pool : pool.filter(w => w.correct === 0);
+  const candidates = pool.filter(w => w.correct === 0);
   const word = weightedPick(candidates, lastWord);
   lastWord = statKey(word.c, word.m);
   document.getElementById('qMain').textContent = word.c;
+
+  document.getElementById('qTags').innerHTML = word.tags
+    .map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join('');
 
   const opts = document.getElementById('options');
   opts.innerHTML = '';
@@ -572,94 +638,127 @@ function newQuestion(){
   const choiceWords = [...distractors, word].sort(() => Math.random() - 0.5);
 
   let answered = false;
-  function finishQuestion(outcome, clickedBtn){ // outcome: 'correct' | 'wrong' | 'dontknow'
+  function finishQuestion(outcome, clickedCell){ // outcome: 'correct' | 'wrong' | 'dontknow'
     if (answered) return;
     answered = true;
     total++;
     if (outcome === 'correct') {
       score++; streak++; bumpStat(word.c, word.m, 'correct');
-      clickedBtn.classList.add('correct');
-      feedback.textContent = `✓ correct — ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
+      clickedCell.classList.add('correct');
+      feedback.textContent = `✓ Correct — ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
       feedback.className = 'feedback correct';
     } else {
       streak = 0;
       bumpStat(word.c, word.m, outcome);
-      if (clickedBtn) clickedBtn.classList.add('wrong');
-      feedback.textContent = `✗ answer: ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
+      if (clickedCell) clickedCell.classList.add('wrong');
+      feedback.textContent = `✗ ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
       feedback.className = 'feedback wrong';
     }
-    opts.querySelectorAll('.option-main').forEach((b2, i2) => {
-      b2.disabled = true;
-      if (choiceWords[i2] === word && outcome !== 'correct') b2.classList.add('correct');
+    opts.querySelectorAll('.option-main').forEach((cell, i2) => {
+      cell.onclick = null;
+      cell.classList.add('answered');
+      if (choiceWords[i2] === word && outcome !== 'correct') cell.classList.add('correct');
+      if (!cell.classList.contains('correct') && !cell.classList.contains('wrong')) cell.classList.add('faded');
     });
     dontKnowBtn.disabled = true;
-    document.getElementById('scoreOut').textContent = `${score} / ${total}`;
-    document.getElementById('streakOut').textContent = streak;
-    document.getElementById('nextBtn').classList.remove('hidden');
+    document.getElementById('scoreOut').textContent = score;
     saveSession();
+    setTimeout(() => { if (screen === 'quiz') newQuestion(); }, 1300);
   }
 
   choiceWords.forEach(cw => {
-    const row = document.createElement('div');
-    row.className = 'option-row';
-
-    const mainBtn = document.createElement('button');
-    mainBtn.className = 'option-main';
-    mainBtn.innerHTML = `<span class="top">${spacedPinyin(cw.p)}</span><span class="bottom">${cw.m}</span>`;
-
-    const speakBtn = document.createElement('button');
-    speakBtn.className = 'speak-btn';
-    speakBtn.setAttribute('aria-label', 'play audio');
-    speakBtn.textContent = '🔊';
-    speakBtn.onclick = (e) => { e.stopPropagation(); speak(cw.c); };
-
-    mainBtn.onclick = () => finishQuestion(cw === word ? 'correct' : 'wrong', mainBtn);
-
-    row.appendChild(mainBtn);
-    row.appendChild(speakBtn);
-    opts.appendChild(row);
+    const cell = document.createElement('div');
+    cell.className = 'option-main';
+    cell.setAttribute('role', 'button');
+    cell.setAttribute('tabindex', '0');
+    cell.innerHTML = `
+      <span class="option-top">
+        <span class="option-pinyin">${spacedPinyin(cw.p)}</span>
+        <button class="speak-btn" type="button" aria-label="play audio">🔊</button>
+      </span>
+      <span class="option-meaning">${cw.m}</span>
+    `;
+    cell.querySelector('.speak-btn').onclick = (e) => { e.stopPropagation(); speak(cw.c); };
+    cell.onclick = () => finishQuestion(cw === word ? 'correct' : 'wrong', cell);
+    cell.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && cell.onclick) { e.preventDefault(); cell.onclick(); } };
+    opts.appendChild(cell);
   });
 
   dontKnowBtn.onclick = () => finishQuestion('dontknow', null);
 }
 
-document.getElementById('nextBtn').onclick = newQuestion;
+function renderResults(){
+  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const pool = resolveRoundPool(taggedPool);
+  const missed = pool.filter(w => w.wrong > 0 || w.dontknow > 0);
 
-document.getElementById('resetPoolBtn').onclick = () => {
+  const tv = tintOf(primaryTag([...activeTags]));
+  document.getElementById('scoreCircle').style.background = `var(${tv.bg})`;
+  const resultScore = document.getElementById('resultScore');
+  resultScore.style.color = `var(${tv.solid})`;
+  resultScore.textContent = score;
+  document.getElementById('resultTotal').textContent = '/' + total;
+
+  document.getElementById('missedTitle').textContent = `Missed this round (${missed.length})`;
+  const box = document.getElementById('missedList');
+  box.innerHTML = '';
+  if (missed.length === 0) {
+    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No missed words this round — nice!</div>';
+  } else {
+    missed.forEach(w => box.appendChild(buildWordRow(w)));
+  }
+
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  playAgainBtn.style.background = `var(${tv.solid})`;
+  playAgainBtn.style.borderColor = `var(${tv.solid})`;
+}
+
+document.getElementById('playAgainBtn').onclick = () => {
   const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
   const pool = resolveRoundPool(taggedPool);
   pool.forEach(w => { delete statsMap[statKey(w.c, w.m)]; });
   saveStats();
   score = 0; total = 0; streak = 0;
-  document.getElementById('scoreOut').textContent = `${score} / ${total}`;
-  document.getElementById('streakOut').textContent = streak;
   saveSession();
-  reviewMode = false;
-  newQuestion();
+  showScreen('quiz');
 };
-document.getElementById('keepReviewingBtn').onclick = () => {
-  reviewMode = true;
-  newQuestion();
+document.getElementById('newRoundBtn').onclick = () => {
+  roundKeys = null;
+  saveSession();
+  showScreen('home');
 };
 
-/* ---------- tabs ---------- */
-const TAB_PANES = { add: 'addPane', quiz: 'quizPane', progress: 'progressPane' };
-document.querySelectorAll('.tab-btn').forEach(b => {
-  b.onclick = () => {
-    document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    Object.values(TAB_PANES).forEach(id => document.getElementById(id).classList.add('hidden'));
-    document.getElementById(TAB_PANES[b.dataset.tab]).classList.remove('hidden');
-    if (b.dataset.tab === 'quiz') newQuestion();
-    if (b.dataset.tab === 'progress') renderProgress();
-  };
-});
+document.getElementById('startBtn').onclick = () => showScreen('quiz');
+
+/* ---------- navigation ---------- */
+const SCREENS = ['home', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'addWord'];
+function showScreen(name){
+  SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
+  screen = name;
+  if (name === 'home') updateHomePoolCount();
+  if (name === 'quiz') newQuestion();
+  if (name === 'results') renderResults();
+  if (name === 'wordDecks') { renderTagOptions(); renderRoundSizeOptions(); renderListFilterOptions(); renderList(); }
+  if (name === 'myProgress') renderProgress();
+  if (name === 'addWord') renderAddWordLevelOptions();
+}
+
+document.getElementById('homeSettingsBtn').onclick = () => { screenBeforeSettings = 'home'; showScreen('settings'); };
+document.getElementById('quizSettingsBtn').onclick = () => { screenBeforeSettings = 'quiz'; showScreen('settings'); };
+document.getElementById('quizExitBtn').onclick = () => showScreen('home');
+document.getElementById('settingsBackBtn').onclick = () => showScreen(screenBeforeSettings);
+document.getElementById('openWordDecksBtn').onclick = () => showScreen('wordDecks');
+document.getElementById('wordDecksBackBtn').onclick = () => showScreen('settings');
+document.getElementById('openMyProgressBtn').onclick = () => showScreen('myProgress');
+document.getElementById('myProgressBackBtn').onclick = () => showScreen('settings');
+document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
+document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
+document.getElementById('darkModeToggle').onclick = toggleDarkMode;
 
 /* ---------- init ---------- */
-updateStatsLine();
+loadTheme();
 loadStats();
 activeTags = new Set(Object.keys(BUILTIN_LISTS));
-loadSession(); // may override score/total/streak/activeTags with a resumed session
-document.getElementById('scoreOut').textContent = `${score} / ${total}`;
-document.getElementById('streakOut').textContent = streak;
+loadSession(); // may override score/total/streak/activeTags/roundSize/roundKeys with a resumed session
 loadWords();
+showScreen('home');
