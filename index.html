@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chinese Vocab Builder — HSK1 / HSK2 / HSK3 / HSK4 / ES1</title>
-<link rel="stylesheet" href="style.css">
+<!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
+     per-file caching can't pair a fresh index.html with a stale, mismatched asset
+     (e.g. a renamed element id) and break the page. -->
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <div class="app">
@@ -96,7 +99,7 @@
     </section>
   </div>
 
-  <script src="data.js"></script>
-  <script src="script.js"></script>
+  <script src="data.js?v=12"></script>
+  <script src="script.js?v=12"></script>
 </body>
 </html>
