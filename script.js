@@ -138,8 +138,10 @@ function combinedPool(){
   });
 }
 
-function seenCount(pool){
-  return pool.filter(w => w.correct + w.wrong + w.dontknow > 0).length;
+// a word is "done" for the round once it's been answered correctly at least once;
+// wrong/don't-know words keep coming back until then
+function doneCount(pool){
+  return pool.filter(w => w.correct > 0).length;
 }
 
 /* ---------- round: a fixed random subset of the tag-filtered pool, sized by roundSize ---------- */
@@ -530,8 +532,8 @@ function newQuestion(){
   const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
   const pool = resolveRoundPool(taggedPool);
   document.getElementById('poolCount').textContent = `${pool.length} ${pool.length === 1 ? 'word' : 'words'} chosen`;
-  const seen = seenCount(pool);
-  document.getElementById('seenCount').textContent = `${seen} / ${pool.length} words seen`;
+  const done = doneCount(pool);
+  document.getElementById('doneCount').textContent = `${done} / ${pool.length} words done`;
   if (taggedPool.length < 4) {
     hideCongrats();
     notEnough.textContent = 'select tags with at least 4 words total to quiz';
@@ -541,7 +543,7 @@ function newQuestion(){
     document.getElementById('dontKnowBtn').classList.add('hidden');
     return;
   }
-  if (seen === pool.length && !reviewMode) {
+  if (done === pool.length && !reviewMode) {
     showCongrats(pool);
     return;
   }
@@ -555,7 +557,10 @@ function newQuestion(){
   dontKnowBtn.classList.remove('hidden');
   dontKnowBtn.disabled = false;
 
-  const word = weightedPick(pool, lastWord);
+  // once a word is answered correctly it stops appearing as a question this round;
+  // in review mode everything stays eligible (old spaced-repetition weighting)
+  const candidates = reviewMode ? pool : pool.filter(w => w.correct === 0);
+  const word = weightedPick(candidates, lastWord);
   lastWord = statKey(word.c, word.m);
   document.getElementById('qMain').textContent = word.c;
 
