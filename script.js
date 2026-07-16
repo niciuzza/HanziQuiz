@@ -2,13 +2,17 @@ const STORAGE_KEY = 'hsk-vocab-words';
 const STATS_KEY = 'hsk-vocab-stats';
 const SESSION_KEY = 'hsk-vocab-session';
 const THEME_KEY = 'hsk-vocab-theme';
+const AUTOPLAY_SOUND_KEY = 'hsk-vocab-autoplay-sound';
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
 let activeTags = new Set();
+let activeTopics = new Set(); // Home's optional topic filter — union within topics, intersected with activeTags
+let detailWord = null; // word shown on the Word Detail screen
 let listSearch = '';
 let listFilterTags = new Set();
+let listFilterTopics = new Set(); // Word Decks' own topic filter — independent of Home's activeTopics
 let overlapOnly = false;
 const UNSEEN_BONUS = 8; // weight multiplier for words never asked before (correct+wrong+dontknow === 0)
 let roundSize = 'all'; // 25|50|100|150|200|250|'all' — how many unique words make up the current round
@@ -16,8 +20,16 @@ let roundKeys = null; // array of statKeys in the current round, or null if not 
 const ROUND_SIZES = [25, 50, 100, 150, 200, 250];
 let progressTags = new Set(); // Settings' progress-list filter; empty means "all lists"
 let darkMode = false;
+let autoPlaySound = true;
 let screen = 'home'; // 'home' | 'quiz' | 'results' | 'settings' | 'addWord'
 let screenBeforeSettings = 'home';
+
+// topic/POS taxonomy for distractor grouping — a word's tags (HSK1/ES1/custom list)
+// are about which *list* it's in; topic/pos are orthogonal to that, and optional.
+const TOPICS = ['Greetings & Phrases', 'Family & People', 'Food & Drink', 'Colors', 'Numbers & Quantities', 'Time & Calendar', 'Travel & Transport', 'Places', 'Body & Health', 'Clothing & Appearance', 'School & Study', 'Work & Money', 'Nature & Weather', 'Household Objects', 'Emotions & Personality', 'Other'];
+const POS_LIST = ['Noun', 'Verb', 'Adjective', 'Pronoun', 'Number/Measure word', 'Time word', 'Function word'];
+let newWordTopic = '';
+let newWordPos = '';
 
 /* ---------- pinyin syllable splitting ---------- */
 const CAP_TONE = /[ĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙǕǗǙǛ]/;
@@ -92,6 +104,23 @@ function toggleDarkMode(){
   applyTheme();
 }
 
+/* ---------- whether the answer card auto-plays the word's pronunciation ---------- */
+function loadAutoPlaySound(){
+  const saved = localStorage.getItem(AUTOPLAY_SOUND_KEY);
+  autoPlaySound = saved === null ? true : saved === 'true';
+  applyAutoPlaySound();
+}
+function applyAutoPlaySound(){
+  const toggle = document.getElementById('autoPlaySoundToggle');
+  toggle.classList.toggle('on', autoPlaySound);
+  toggle.setAttribute('aria-checked', String(autoPlaySound));
+}
+function toggleAutoPlaySound(){
+  autoPlaySound = !autoPlaySound;
+  try { localStorage.setItem(AUTOPLAY_SOUND_KEY, String(autoPlaySound)); } catch (e) {}
+  applyAutoPlaySound();
+}
+
 /* ---------- stats (per-word progress, keyed by character+meaning) ---------- */
 function statKey(c, m){ return c + '::' + m; }
 function getStats(c, m){
@@ -134,13 +163,14 @@ function loadSession(){
     total = s.total || 0;
     streak = s.streak || 0;
     if (Array.isArray(s.activeTags) && s.activeTags.length) activeTags = new Set(s.activeTags);
+    if (Array.isArray(s.activeTopics)) activeTopics = new Set(s.activeTopics);
     roundSize = s.roundSize || 'all';
     roundKeys = Array.isArray(s.roundKeys) ? s.roundKeys : null;
   } catch (e) {}
 }
 function saveSession(){
   try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ score, total, streak, activeTags: [...activeTags], roundSize, roundKeys }));
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ score, total, streak, activeTags: [...activeTags], activeTopics: [...activeTopics], roundSize, roundKeys }));
   } catch (e) {}
 }
 
@@ -148,21 +178,29 @@ function saveSession(){
 function combinedPool(){
   const map = new Map();
   Object.entries(BUILTIN_LISTS).forEach(([tag, list]) => {
-    list.forEach(([c, p, m]) => {
+    list.forEach(([c, p, m, pos, topic]) => {
       const k = statKey(c, m);
-      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set() });
+      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set(), pos: pos || null, topic: topic || null });
       map.get(k).tags.add(tag);
     });
   });
   words.forEach(w => {
     const k = statKey(w.c, w.m);
-    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set() });
+    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set(), pos: w.pos || null, topic: w.topic || null });
     w.tags.forEach(t => map.get(k).tags.add(t));
   });
   return [...map.values()].map(w => {
     const s = getStats(w.c, w.m);
-    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
+    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
   });
+}
+
+// combinedPool() narrowed to the Home screen's active filters: word must be in one of the
+// selected lists (activeTags), AND — if any topics are selected — match at least one of them
+// (topics union together, but that union is intersected with the list selection)
+function filteredPool(){
+  return combinedPool().filter(w => w.tags.some(t => activeTags.has(t))
+    && (activeTopics.size === 0 || (w.topic && activeTopics.has(w.topic))));
 }
 
 // a word is "done" for the round once it's been answered correctly at least once;
@@ -238,12 +276,10 @@ function tagClass(tag){
   return 'other';
 }
 
-// renders the deck-chip row on both Home (#tagFilterRow) and Word Decks (#deckTagFilterRow),
-// keeping them in sync since they share the same activeTags state
 function renderTagOptions(){
   const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
   document.getElementById('tagOptions').innerHTML = tags.map(t => `<option value="${t}">`).join('');
-  ['tagFilterRow', 'deckTagFilterRow'].forEach(id => renderTagRow(id, tags));
+  renderTagRow('tagFilterRow', tags);
 }
 function renderTagRow(containerId, tags){
   const filterRow = document.getElementById(containerId);
@@ -269,7 +305,7 @@ function renderTagRow(containerId, tags){
 }
 
 function renderRoundSizeOptions(){
-  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const taggedPool = filteredPool();
   const options = [...ROUND_SIZES.filter(n => n <= taggedPool.length), 'all'];
   if (roundSize !== 'all' && !options.includes(roundSize)) {
     roundSize = 'all';
@@ -295,7 +331,7 @@ function renderRoundSizeOptions(){
 }
 
 function updateHomePoolCount(){
-  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const taggedPool = filteredPool();
   const poolCountEl = document.getElementById('poolCount');
   const startBtn = document.getElementById('startBtn');
   if (taggedPool.length < 4) {
@@ -310,6 +346,64 @@ function updateHomePoolCount(){
   startBtn.style.background = `var(${tv.solid})`;
   startBtn.style.borderColor = `var(${tv.solid})`;
 }
+
+// Shared topic filter widget: a dropdown that adds chips into a search-box-styled row.
+// Chips union together (any selected topic matches). Used on both Home (filters the quiz
+// pool, intersected with activeTags) and Word Decks (filters the word list, intersected
+// with listFilterTags) — each screen keeps its own Set and passes an onChange callback.
+function renderTopicChipFilter(chipsId, selectId, activeSet, onChange){
+  const box = document.getElementById(chipsId);
+  box.innerHTML = '';
+  activeSet.forEach(t => {
+    const chip = document.createElement('span');
+    chip.className = 'topic-chip';
+    chip.innerHTML = `${t} <button type="button" aria-label="Remove ${t}">×</button>`;
+    chip.querySelector('button').onclick = () => {
+      activeSet.delete(t);
+      onChange();
+    };
+    box.appendChild(chip);
+  });
+  const select = document.getElementById(selectId);
+  const remaining = TOPICS.filter(t => !activeSet.has(t));
+  select.innerHTML = '<option value="" selected disabled>+ Add a topic…</option>'
+    + remaining.map(t => `<option value="${t}">${t}</option>`).join('');
+  select.classList.toggle('hidden', remaining.length === 0);
+}
+
+function renderTopicFilter(){
+  renderTopicChipFilter('topicChips', 'topicSelect', activeTopics, () => {
+    roundKeys = null;
+    saveSession();
+    renderTopicFilter();
+    renderRoundSizeOptions();
+    updateHomePoolCount();
+  });
+}
+document.getElementById('topicSelect').onchange = (e) => {
+  const t = e.target.value;
+  if (!t) return;
+  activeTopics.add(t);
+  roundKeys = null;
+  saveSession();
+  renderTopicFilter();
+  renderRoundSizeOptions();
+  updateHomePoolCount();
+};
+
+function renderDeckTopicFilter(){
+  renderTopicChipFilter('deckTopicChips', 'deckTopicSelect', listFilterTopics, () => {
+    renderDeckTopicFilter();
+    renderList();
+  });
+}
+document.getElementById('deckTopicSelect').onchange = (e) => {
+  const t = e.target.value;
+  if (!t) return;
+  listFilterTopics.add(t);
+  renderDeckTopicFilter();
+  renderList();
+};
 
 /* ---------- word list (Settings: your own custom words) ---------- */
 // if 2+ built-in list tags (HSK1/HSK2/ES1) are selected in the filter row, "overlap" means
@@ -351,17 +445,18 @@ function renderList(){
   document.getElementById('overlapCount').textContent = `(${countOverlaps()})`;
   const query = listSearch.trim();
   const hasQuery = query.length > 0;
-  const hasFilter = listFilterTags.size > 0;
+  const hasFilter = listFilterTags.size > 0 || listFilterTopics.size > 0;
   const expanded = hasQuery || hasFilter || overlapOnly;
   const q = detone(query); // lowercases + strips tone marks; a no-op for Chinese characters
   // with no search text, tag filter, or overlap toggle, show only your own custom words;
   // any of those look across the built-in lists too
   const source = expanded
     ? combinedPool()
-    : words.map(w => { const s = getStats(w.c, w.m); return { c: w.c, p: w.p, m: w.m, tags: w.tags, correct: s.correct, wrong: s.wrong }; });
+    : words.map(w => { const s = getStats(w.c, w.m); return { c: w.c, p: w.p, m: w.m, tags: w.tags, topic: w.topic, pos: w.pos, correct: s.correct, wrong: s.wrong }; });
   const filtered = source.filter(w => {
     if (overlapOnly && !isOverlap(w)) return false;
     if (listFilterTags.size && !w.tags.some(t => listFilterTags.has(t))) return false;
+    if (listFilterTopics.size && !(w.topic && listFilterTopics.has(w.topic))) return false;
     if (!hasQuery) return true;
     return w.c.includes(query) || detone(w.p).includes(q) || w.m.toLowerCase().includes(q);
   });
@@ -380,25 +475,27 @@ function renderList(){
   }
   [...filtered].reverse().forEach(w => {
     const idx = words.findIndex(w2 => w2.c === w.c && w2.m === w.m);
-    const seen = w.correct + w.wrong;
-    const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
     const badges = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join(' ');
     const row = document.createElement('div');
-    row.className = 'word-row';
+    row.className = 'word-row clickable';
     row.innerHTML = `
       <span class="char">${w.c}</span>
       <span class="pinyin">${spacedPinyin(w.p)}</span>
       <span class="meaning">${w.m}</span>
       <span class="row-meta">
         <span class="tags">${badges}</span>
-        <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
         ${idx !== -1 ? `<button class="del-btn" data-idx="${idx}" aria-label="Delete">✕</button>` : '<span class="del-btn-spacer"></span>'}
       </span>
     `;
+    row.onclick = (e) => {
+      if (e.target.closest('.del-btn')) return;
+      showWordDetail(w);
+    };
     box.appendChild(row);
   });
   box.querySelectorAll('.del-btn').forEach(b => {
-    b.onclick = () => {
+    b.onclick = (e) => {
+      e.stopPropagation();
       words.splice(parseInt(b.dataset.idx), 1);
       saveWords();
       renderList();
@@ -527,13 +624,48 @@ function renderAddWordLevelOptions(){
 }
 document.getElementById('inTag').addEventListener('input', renderAddWordLevelOptions);
 
+// topic/POS are optional single-select fields — clicking the already-active chip
+// deselects it, unlike the required list-tag row above.
+function renderAddWordTopicOptions(){
+  const row = document.getElementById('addWordTopicRow');
+  row.innerHTML = '';
+  TOPICS.forEach(t => {
+    const btn = document.createElement('button');
+    btn.textContent = t;
+    btn.className = newWordTopic === t ? 'active' : '';
+    btn.onclick = () => {
+      newWordTopic = (newWordTopic === t ? '' : t);
+      renderAddWordTopicOptions();
+    };
+    row.appendChild(btn);
+  });
+}
+function renderAddWordPosOptions(){
+  const row = document.getElementById('addWordPosRow');
+  row.innerHTML = '';
+  POS_LIST.forEach(p => {
+    const btn = document.createElement('button');
+    btn.textContent = p;
+    btn.className = newWordPos === p ? 'active' : '';
+    btn.onclick = () => {
+      newWordPos = (newWordPos === p ? '' : p);
+      renderAddWordPosOptions();
+    };
+    row.appendChild(btn);
+  });
+}
+
 function resetAddWordForm(){
   document.getElementById('inChar').value = '';
   document.getElementById('inPinyin').value = '';
   document.getElementById('inMeaning').value = '';
   document.getElementById('inTag').value = '';
   document.getElementById('addMsg').textContent = '';
+  newWordTopic = '';
+  newWordPos = '';
   renderAddWordLevelOptions();
+  renderAddWordTopicOptions();
+  renderAddWordPosOptions();
 }
 
 document.getElementById('addBtn').onclick = () => {
@@ -549,8 +681,10 @@ document.getElementById('addBtn').onclick = () => {
   const existing = words.find(w => w.c === c && w.m === m);
   if (existing) {
     if (!existing.tags.includes(tag)) existing.tags.push(tag);
+    if (newWordTopic) existing.topic = newWordTopic;
+    if (newWordPos) existing.pos = newWordPos;
   } else {
-    words.push({ c, p, m, tags: [tag] });
+    words.push({ c, p, m, tags: [tag], topic: newWordTopic || undefined, pos: newWordPos || undefined });
   }
   saveWords();
   resetAddWordForm();
@@ -577,6 +711,39 @@ function pickRandom(arr, n, exclude){
   return res;
 }
 
+function syllableCount(p){
+  return fixToneCase(p).split(' ').reduce((sum, tok) => sum + greedySyllables(tok).length, 0);
+}
+
+// picks distractors that "look like" the correct word first before falling back to a
+// fully random pick, so wrong answers can't be eliminated on sight just because they're
+// an obviously different kind of word (e.g. a grammar particle next to a color) or an
+// obviously different-length one. Tiers, tightest first: same topic AND same syllable
+// count > same syllable count in any topic > same topic+pos > same topic OR pos >
+// anything else.
+function pickDistractors(pool, word, n){
+  const others = pool.filter(w => w !== word);
+  const wordSyllables = word.p ? syllableCount(word.p) : null;
+  const sameSyllables = w => wordSyllables !== null && w.p && syllableCount(w.p) === wordSyllables;
+  const tiers = [
+    others.filter(w => word.topic && w.topic === word.topic && sameSyllables(w)),
+    others.filter(sameSyllables),
+    others.filter(w => word.topic && word.pos && w.topic === word.topic && w.pos === word.pos),
+    others.filter(w => (word.topic && w.topic === word.topic) || (word.pos && w.pos === word.pos)),
+    others,
+  ];
+  const picked = [];
+  const usedKeys = new Set();
+  for (const tier of tiers) {
+    if (picked.length >= n) break;
+    const candidates = tier.filter(w => !usedKeys.has(statKey(w.c, w.m)));
+    const chosen = pickRandom(candidates, n - picked.length, null);
+    chosen.forEach(w => usedKeys.add(statKey(w.c, w.m)));
+    picked.push(...chosen);
+  }
+  return picked;
+}
+
 function weightedPick(pool, excludeKey){
   const weights = pool.map(w => {
     const base = 1 + (w.wrong + w.dontknow) * 2.5 - w.correct * 0.4;
@@ -597,7 +764,7 @@ function weightedPick(pool, excludeKey){
 }
 
 function newQuestion(){
-  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const taggedPool = filteredPool();
   if (taggedPool.length < 4) {
     // shouldn't normally reach the quiz screen in this state (Home disables Start), but bail out safely
     showScreen('home');
@@ -616,11 +783,16 @@ function newQuestion(){
     return;
   }
 
+  const questionBox = document.getElementById('questionBox');
+  questionBox.classList.remove('revealed', 'correct', 'wrong');
+  questionBox.onclick = null;
   const feedback = document.getElementById('feedback');
   feedback.textContent = '';
   feedback.className = 'feedback';
+  document.getElementById('quizMetaList').classList.add('hidden');
   const dontKnowBtn = document.getElementById('dontKnowBtn');
   dontKnowBtn.disabled = false;
+  dontKnowBtn.classList.remove('hidden');
 
   const candidates = pool.filter(w => w.correct === 0);
   const word = weightedPick(candidates, lastWord);
@@ -630,40 +802,65 @@ function newQuestion(){
   document.getElementById('qTags').innerHTML = word.tags
     .map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join('');
 
+  const hintBtn = document.getElementById('hintBtn');
+  const hintText = document.getElementById('hintText');
+  hintText.textContent = '';
+  hintText.classList.add('hidden');
+  const hasHint = !!(word.topic || word.pos);
+  hintBtn.classList.toggle('hidden', !hasHint);
+  hintBtn.onclick = (e) => {
+    e.stopPropagation();
+    hintText.textContent = [word.topic, word.pos].filter(Boolean).join(' · ');
+    hintText.classList.remove('hidden');
+    hintBtn.classList.add('hidden');
+  };
+
   const opts = document.getElementById('options');
   opts.innerHTML = '';
+  opts.classList.remove('hidden');
 
   const numChoices = Math.min(6, pool.length);
-  const distractors = pickRandom(pool, numChoices - 1, word);
+  const distractors = pickDistractors(pool, word, numChoices - 1);
   const choiceWords = [...distractors, word].sort(() => Math.random() - 0.5);
 
   let answered = false;
-  function finishQuestion(outcome, clickedCell){ // outcome: 'correct' | 'wrong' | 'dontknow'
+  function finishQuestion(outcome){ // outcome: 'correct' | 'wrong' | 'dontknow'
     if (answered) return;
     answered = true;
+    if (document.activeElement) document.activeElement.blur();
     total++;
     if (outcome === 'correct') {
       score++; streak++; bumpStat(word.c, word.m, 'correct');
-      clickedCell.classList.add('correct');
-      feedback.textContent = `✓ Correct — ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
-      feedback.className = 'feedback correct';
     } else {
       streak = 0;
       bumpStat(word.c, word.m, outcome);
-      if (clickedCell) clickedCell.classList.add('wrong');
-      feedback.textContent = `✗ ${word.c} (${spacedPinyin(word.p)}) = ${word.m}`;
-      feedback.className = 'feedback wrong';
     }
-    opts.querySelectorAll('.option-main').forEach((cell, i2) => {
-      cell.onclick = null;
-      cell.classList.add('answered');
-      if (choiceWords[i2] === word && outcome !== 'correct') cell.classList.add('correct');
-      if (!cell.classList.contains('correct') && !cell.classList.contains('wrong')) cell.classList.add('faded');
-    });
-    dontKnowBtn.disabled = true;
+    // reveal a single flashcard-style answer, matching the Word Detail screen's layout
+    // (character + pinyin + meaning + topic/POS), tinted green/red for correct/wrong instead
+    // of the list's own accent color; it auto-advances after a couple seconds, but
+    // tapping/clicking the card jumps ahead immediately.
+    opts.classList.add('hidden');
+    dontKnowBtn.classList.add('hidden');
+    hintBtn.classList.add('hidden');
+    hintText.classList.add('hidden');
+    feedback.innerHTML = `<span class="feedback-pinyin">${spacedPinyin(word.p)}</span><span class="feedback-meaning">${word.m}</span>`;
+    feedback.className = 'feedback revealed';
+    document.getElementById('quizMetaTopic').textContent = word.topic || '—';
+    document.getElementById('quizMetaPos').textContent = word.pos || '—';
+    document.getElementById('quizMetaList').classList.remove('hidden');
     document.getElementById('scoreOut').textContent = score;
     saveSession();
-    setTimeout(() => { if (screen === 'quiz') newQuestion(); }, 1300);
+    if (autoPlaySound) speak(word.c);
+    questionBox.classList.add('revealed', outcome === 'correct' ? 'correct' : 'wrong');
+    let advanced = false;
+    const advance = () => {
+      if (advanced) return;
+      advanced = true;
+      questionBox.onclick = null;
+      newQuestion();
+    };
+    questionBox.onclick = advance;
+    setTimeout(() => { if (screen === 'quiz') advance(); }, 2500);
   }
 
   choiceWords.forEach(cw => {
@@ -679,16 +876,16 @@ function newQuestion(){
       <span class="option-meaning">${cw.m}</span>
     `;
     cell.querySelector('.speak-btn').onclick = (e) => { e.stopPropagation(); speak(cw.c); };
-    cell.onclick = () => finishQuestion(cw === word ? 'correct' : 'wrong', cell);
+    cell.onclick = () => finishQuestion(cw === word ? 'correct' : 'wrong');
     cell.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && cell.onclick) { e.preventDefault(); cell.onclick(); } };
     opts.appendChild(cell);
   });
 
-  dontKnowBtn.onclick = () => finishQuestion('dontknow', null);
+  dontKnowBtn.onclick = () => finishQuestion('dontknow');
 }
 
 function renderResults(){
-  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const taggedPool = filteredPool();
   const pool = resolveRoundPool(taggedPool);
   const missed = pool.filter(w => w.wrong > 0 || w.dontknow > 0);
 
@@ -714,7 +911,7 @@ function renderResults(){
 }
 
 document.getElementById('playAgainBtn').onclick = () => {
-  const taggedPool = combinedPool().filter(w => w.tags.some(t => activeTags.has(t)));
+  const taggedPool = filteredPool();
   const pool = resolveRoundPool(taggedPool);
   pool.forEach(w => { delete statsMap[statKey(w.c, w.m)]; });
   saveStats();
@@ -731,16 +928,35 @@ document.getElementById('newRoundBtn').onclick = () => {
 document.getElementById('startBtn').onclick = () => showScreen('quiz');
 
 /* ---------- navigation ---------- */
-const SCREENS = ['home', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'addWord'];
+const SCREENS = ['home', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'addWord', 'wordDetail'];
 function showScreen(name){
   SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
   screen = name;
-  if (name === 'home') updateHomePoolCount();
+  if (name === 'home') { renderTopicFilter(); updateHomePoolCount(); }
   if (name === 'quiz') newQuestion();
   if (name === 'results') renderResults();
-  if (name === 'wordDecks') { renderTagOptions(); renderRoundSizeOptions(); renderListFilterOptions(); renderList(); }
+  if (name === 'wordDecks') { renderListFilterOptions(); renderDeckTopicFilter(); renderList(); }
   if (name === 'myProgress') renderProgress();
-  if (name === 'addWord') renderAddWordLevelOptions();
+  if (name === 'addWord') { renderAddWordLevelOptions(); renderAddWordTopicOptions(); renderAddWordPosOptions(); }
+  if (name === 'wordDetail') renderWordDetail();
+}
+
+function showWordDetail(w){
+  detailWord = w;
+  showScreen('wordDetail');
+}
+function renderWordDetail(){
+  const w = detailWord;
+  if (!w) { showScreen('wordDecks'); return; }
+  document.getElementById('detailChar').textContent = w.c;
+  document.getElementById('detailPinyin').textContent = spacedPinyin(w.p);
+  document.getElementById('detailMeaning').textContent = w.m;
+  document.getElementById('detailListTags').innerHTML = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join('');
+  document.getElementById('detailTopic').textContent = w.topic || '—';
+  document.getElementById('detailPos').textContent = w.pos || '—';
+  document.getElementById('detailSpeakBtn').onclick = () => speak(w.c);
+  const tv = tintOf(primaryTag(w.tags));
+  document.getElementById('detailCard').style.background = `var(${tv.bg})`;
 }
 
 document.getElementById('homeSettingsBtn').onclick = () => { screenBeforeSettings = 'home'; showScreen('settings'); };
@@ -753,12 +969,18 @@ document.getElementById('openMyProgressBtn').onclick = () => showScreen('myProgr
 document.getElementById('myProgressBackBtn').onclick = () => showScreen('settings');
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
+document.getElementById('wordDetailBackBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('darkModeToggle').onclick = toggleDarkMode;
+document.getElementById('autoPlaySoundToggle').onclick = toggleAutoPlaySound;
 
 /* ---------- init ---------- */
 loadTheme();
+loadAutoPlaySound();
 loadStats();
 activeTags = new Set(Object.keys(BUILTIN_LISTS));
 loadSession(); // may override score/total/streak/activeTags/roundSize/roundKeys with a resumed session
 loadWords();
-showScreen('home');
+// resume straight into an unfinished round on reload instead of always landing on Home;
+// newQuestion()/showScreen already handle re-rolling an invalid round, jumping to Results
+// if it was already complete, or falling back to Home if the pool's too small now.
+showScreen(roundKeys ? 'quiz' : 'home');
