@@ -195,7 +195,7 @@ input::placeholder{ color:var(--text-muted); }
 .mode-switch{ display:flex; gap:4px; padding:4px; border-radius:14px; background:var(--surface-1); margin-bottom:18px; }
 .mode-switch-btn{ flex:1; padding:9px; border-radius:10px; border:none; background:transparent; color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
 .mode-switch-btn:hover{ background:transparent; }
-.mode-switch-btn.active{ background:var(--surface-2); color:var(--text-primary); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.mode-switch-btn.active{ background:var(--accent-bg); color:var(--accent-text); }
 
 /* ---------- Learning Mode: flashcards ---------- */
 .flashcard-card{
