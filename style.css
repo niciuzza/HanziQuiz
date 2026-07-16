@@ -22,6 +22,9 @@
   --danger-bg:#FCE8E8;
   --danger-text:#E14F4F;
   --danger-border:#E14F4F;
+  --tag-sat:65%;
+  --tag-bg-l:88%;
+  --tag-text-l:38%;
   --radius:12px;
   --radius-lg:20px;
   --shadow:0 20px 60px rgba(0,0,0,.10);
@@ -51,6 +54,9 @@
     --danger-bg:#4A2323;
     --danger-text:#EF9A9A;
     --danger-border:#EF9A9A;
+    --tag-sat:45%;
+    --tag-bg-l:26%;
+    --tag-text-l:78%;
     --shadow:0 20px 60px rgba(0,0,0,.35);
   }
 }
@@ -78,6 +84,9 @@
   --danger-bg:#FCE8E8;
   --danger-text:#E14F4F;
   --danger-border:#E14F4F;
+  --tag-sat:65%;
+  --tag-bg-l:88%;
+  --tag-text-l:38%;
   --shadow:0 20px 60px rgba(0,0,0,.10);
 }
 :root[data-theme="dark"]{
@@ -104,6 +113,9 @@
   --danger-bg:#4A2323;
   --danger-text:#EF9A9A;
   --danger-border:#EF9A9A;
+  --tag-sat:45%;
+  --tag-bg-l:26%;
+  --tag-text-l:78%;
   --shadow:0 20px 60px rgba(0,0,0,.35);
 }
 
@@ -216,6 +228,11 @@ input::placeholder{ color:var(--text-muted); }
 .tag-filter-row button.active.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); border-color:transparent; }
 .tag-filter-row button.active.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); border-color:transparent; }
 .tag-filter-row button.active.es{ background:var(--success-bg); color:var(--success-text); border-color:transparent; }
+.tag-filter-row button.active.custom-tag{
+  background:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-bg-l));
+  color:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-text-l));
+  border-color:transparent;
+}
 .tag-filter-row button:not(.active){ color:var(--text-muted); background:transparent; }
 .pool-count{ font-size:12px; color:var(--text-muted); margin:0 0 24px; font-weight:500; }
 .pool-count.warning{ color:var(--danger-text); font-weight:600; }
@@ -317,6 +334,10 @@ input::placeholder{ color:var(--text-muted); }
 }
 .feedback-pinyin{ font-size:19px; font-weight:600; opacity:.85; }
 .feedback-meaning{ font-size:28px; font-weight:700; }
+.feedback-sense{ display:flex; flex-direction:column; align-items:center; }
+.feedback-sense + .feedback-sense{ margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,.25); width:100%; }
+
+.multi-select-hint{ font-size:13px; font-weight:600; color:var(--accent-text); margin:0 0 2px; }
 
 .hint-btn{
   position:absolute;
@@ -350,6 +371,7 @@ input::placeholder{ color:var(--text-muted); }
 .option-main:hover{ transform:translateY(-2px); border-color:var(--accent-solid); }
 .option-main:focus{ outline:none; }
 .option-main:focus-visible{ outline:2px solid var(--accent-solid); outline-offset:2px; }
+.option-main.selected{ border-color:var(--accent-solid); background:var(--accent-bg); }
 .option-top{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
 .option-pinyin{ font-size:19px; font-weight:600; color:var(--text-primary); }
 .option-main .speak-btn{
@@ -359,6 +381,22 @@ input::placeholder{ color:var(--text-muted); }
   font-size:16px; flex:none;
 }
 .option-meaning{ font-size:14px; font-weight:500; color:var(--text-secondary); }
+
+.submit-answer-btn{
+  width:100%;
+  padding:14px;
+  border-radius:14px;
+  border:2px solid var(--accent-solid);
+  background:var(--accent-solid);
+  color:#fff;
+  font-size:15px;
+  font-weight:600;
+  text-align:center;
+  cursor:pointer;
+  margin-top:10px;
+}
+.submit-answer-btn:hover{ opacity:.9; }
+.submit-answer-btn:disabled{ opacity:.4; cursor:default; }
 
 .dont-know-link{
   display:block;
@@ -490,6 +528,10 @@ button.settings-menu-item:hover{ background:var(--surface-2); }
 .badge.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); }
 .badge.es{ background:var(--success-bg); color:var(--success-text); }
 .badge.other{ background:var(--surface-1); color:var(--text-secondary); border:1px solid var(--border); }
+.badge.custom-tag{
+  background:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-bg-l));
+  color:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-text-l));
+}
 .word-row .acc{ font-size:12px; color:var(--text-muted); min-width:34px; text-align:right; font-variant-numeric:tabular-nums; }
 .del-btn{ padding:4px 9px; color:var(--text-muted); }
 .del-btn:hover{ color:var(--danger-text); border-color:var(--danger-border); background:var(--danger-bg); }
