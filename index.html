@@ -10,7 +10,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
   <div class="app">
@@ -30,6 +30,13 @@
 
       <p class="section-label">Word lists</p>
       <div class="tag-filter-row" id="tagFilterRow"></div>
+
+      <p class="section-label">Topics (optional)</p>
+      <div class="topic-filter-box" id="topicFilterBox">
+        <div class="topic-chips" id="topicChips"></div>
+        <select id="topicSelect"></select>
+      </div>
+
       <p class="pool-count" id="poolCount"></p>
 
       <button id="startBtn" class="primary-btn">Start</button>
@@ -53,8 +60,14 @@
       <div class="question-box" id="questionBox">
         <div class="q-tags" id="qTags"></div>
         <div class="q-main" id="qMain">-</div>
+        <p class="hint-text hidden" id="hintText"></p>
         <p class="feedback" id="feedback"></p>
-        <p class="q-prompt">What does this word mean?</p>
+        <button class="hint-btn" id="hintBtn">💡 Hint</button>
+      </div>
+
+      <div class="detail-meta-list hidden" id="quizMetaList">
+        <div class="detail-meta-row"><span class="detail-meta-label">Topic</span><span class="detail-meta-value" id="quizMetaTopic">—</span></div>
+        <div class="detail-meta-row"><span class="detail-meta-label">Part of speech</span><span class="detail-meta-value" id="quizMetaPos">—</span></div>
       </div>
 
       <div class="options" id="options"></div>
@@ -97,6 +110,10 @@
           <span>Dark mode</span>
           <button class="toggle-switch" id="darkModeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
         </div>
+        <div class="settings-menu-item">
+          <span>Play sound on answer</span>
+          <button class="toggle-switch" id="autoPlaySoundToggle" role="switch" aria-checked="true"><span class="toggle-knob"></span></button>
+        </div>
       </div>
     </section>
 
@@ -107,14 +124,15 @@
         <span class="screen-title">Word decks</span>
       </div>
 
-      <p class="section-label">Word decks</p>
-      <div class="tag-filter-row" id="deckTagFilterRow"></div>
-
       <button class="add-word-btn" id="openAddWordBtn">+ Add new word</button>
 
       <div class="list-controls">
         <input id="searchWord" type="search" placeholder="Search all lists — character, pinyin (tone marks optional), or meaning…">
         <div class="tag-filter-row" id="listFilterRow"></div>
+        <div class="topic-filter-box" id="deckTopicFilterBox">
+          <div class="topic-chips" id="deckTopicChips"></div>
+          <select id="deckTopicSelect"></select>
+        </div>
         <label class="overlap-toggle">
           <input type="checkbox" id="overlapOnly">
           Show only words that overlap between lists
@@ -123,6 +141,27 @@
       </div>
       <p class="count-label" id="countLabel">0 words saved</p>
       <div class="word-list" id="wordList"></div>
+    </section>
+
+    <!-- ============ WORD DETAIL ============ -->
+    <section id="wordDetailScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="wordDetailBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Word details</span>
+      </div>
+
+      <div class="question-box detail-card" id="detailCard">
+        <div class="q-tags" id="detailListTags"></div>
+        <button class="detail-speak-btn" id="detailSpeakBtn" aria-label="play audio">🔊</button>
+        <div class="q-main" id="detailChar">-</div>
+        <p class="detail-pinyin" id="detailPinyin"></p>
+        <p class="detail-meaning" id="detailMeaning"></p>
+      </div>
+
+      <div class="detail-meta-list">
+        <div class="detail-meta-row"><span class="detail-meta-label">Topic</span><span class="detail-meta-value" id="detailTopic">—</span></div>
+        <div class="detail-meta-row"><span class="detail-meta-label">Part of speech</span><span class="detail-meta-value" id="detailPos">—</span></div>
+      </div>
     </section>
 
     <!-- ============ MY PROGRESS ============ -->
@@ -167,6 +206,14 @@
           <input id="inTag" placeholder="or type a custom list name" list="tagOptions">
           <datalist id="tagOptions"></datalist>
         </div>
+        <div>
+          <div class="field-label">Topic (optional)</div>
+          <div class="tag-filter-row" id="addWordTopicRow"></div>
+        </div>
+        <div>
+          <div class="field-label">Part of speech (optional)</div>
+          <div class="tag-filter-row" id="addWordPosRow"></div>
+        </div>
       </div>
       <p class="msg" id="addMsg"></p>
       <div class="add-word-actions">
@@ -177,7 +224,7 @@
 
   </div>
 
-  <script src="data.js?v=16"></script>
-  <script src="script.js?v=16"></script>
+  <script src="data.js?v=33"></script>
+  <script src="script.js?v=33"></script>
 </body>
 </html>
