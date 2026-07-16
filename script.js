@@ -198,20 +198,24 @@ function saveSession(){
 function combinedPool(){
   const map = new Map();
   Object.entries(BUILTIN_LISTS).forEach(([tag, list]) => {
-    list.forEach(([c, p, m, pos, topic]) => {
+    list.forEach(([c, p, m, pos, topic, chapter]) => {
       const k = statKey(c, m);
-      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set(), pos: pos || null, topic: topic || null });
+      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set(), pos: pos || null, topic: topic || null, chapter: chapter || null });
+      // a word can be shared across lists (e.g. also in HSK1); whichever list is merged first
+      // wins pos/topic, but chapter is ES1-book-specific, so always backfill it once known,
+      // regardless of merge order
+      if (!map.get(k).chapter && chapter) map.get(k).chapter = chapter;
       map.get(k).tags.add(tag);
     });
   });
   words.forEach(w => {
     const k = statKey(w.c, w.m);
-    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set(), pos: w.pos || null, topic: w.topic || null });
+    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set(), pos: w.pos || null, topic: w.topic || null, chapter: w.chapter || null });
     w.tags.forEach(t => map.get(k).tags.add(t));
   });
   return [...map.values()].map(w => {
     const s = getStats(w.c, w.m);
-    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
+    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, chapter: w.chapter, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
   });
 }
 
