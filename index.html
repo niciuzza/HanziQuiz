@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chinese Word Quiz — HSK1 / HSK2 / HSK3 / HSK4 / ES1</title>
+<title>HanZi Quiz — HSK1 / HSK2 / HSK3 / HSK4 / ES1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Noto+Sans+SC:wght@500;700&display=swap" rel="stylesheet">
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=39">
+<link rel="stylesheet" href="style.css?v=47">
 </head>
 <body>
   <div class="app">
@@ -18,10 +18,11 @@
     <!-- ============ HOME ============ -->
     <section id="homeScreen">
       <div class="screen-header-end">
+        <button class="icon-btn" id="homeProgressBtn" aria-label="My progress">◔</button>
         <button class="icon-btn" id="homeSettingsBtn" aria-label="Settings">⚙️</button>
       </div>
       <div class="home-title">
-        <h1>Chinese Word Quiz</h1>
+        <h1>HanZi Quiz</h1>
         <p class="home-subtitle">Guess the meaning, hear the pronunciation</p>
       </div>
 
@@ -101,10 +102,6 @@
           <span>Word decks</span>
           <span class="menu-chevron">›</span>
         </button>
-        <button class="settings-menu-item" id="openMyProgressBtn">
-          <span>My progress</span>
-          <span class="menu-chevron">›</span>
-        </button>
         <div class="settings-menu-item">
           <span>Dark mode</span>
           <button class="toggle-switch" id="darkModeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
@@ -173,20 +170,61 @@
       </div>
     </section>
 
-    <!-- ============ MY PROGRESS ============ -->
+    <!-- ============ MY PROGRESS (hub) ============ -->
     <section id="myProgressScreen" class="hidden">
       <div class="screen-header-back">
         <button class="icon-btn" id="myProgressBackBtn" aria-label="Back">←</button>
         <span class="screen-title">My progress</span>
+        <button id="resetProgressBtn" class="reset-inline-btn">Reset all progress</button>
       </div>
 
-      <p class="section-label">Filter progress by list</p>
-      <div class="tag-filter-row" id="progressFilterRow"></div>
-      <button id="resetProgressBtn" class="reset-progress-btn">Reset all progress</button>
-      <p class="section-label">Words you've gotten wrong</p>
-      <div class="word-list" id="wrongList"></div>
-      <p class="section-label" style="margin-top:20px;">Words you've marked "I don't know"</p>
-      <div class="word-list" id="dontKnowList"></div>
+      <div class="settings-menu">
+        <button class="settings-menu-item" id="openProgressWrongBtn">
+          <span>Words you've gotten wrong</span>
+          <span class="menu-item-end"><span class="menu-count" id="progressWrongCount">0</span><span class="menu-chevron">›</span></span>
+        </button>
+        <button class="settings-menu-item" id="openProgressDontKnowBtn">
+          <span>Words you've marked "I don't know"</span>
+          <span class="menu-item-end"><span class="menu-count" id="progressDontKnowCount">0</span><span class="menu-chevron">›</span></span>
+        </button>
+        <button class="settings-menu-item" id="openProgressMasteredBtn">
+          <span>Mastered words</span>
+          <span class="menu-item-end"><span class="menu-count" id="progressMasteredCount">0</span><span class="menu-chevron">›</span></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ PROGRESS: WRONG ============ -->
+    <section id="progressWrongScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="progressWrongBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Words you've gotten wrong</span>
+        <button id="resetWrongBtn" class="reset-inline-btn hidden">Reset</button>
+      </div>
+      <div class="tag-filter-row" id="wrongFilterRow"></div>
+      <div class="word-list full-list" id="wrongList"></div>
+    </section>
+
+    <!-- ============ PROGRESS: DON'T KNOW ============ -->
+    <section id="progressDontKnowScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="progressDontKnowBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Words you've marked "I don't know"</span>
+        <button id="resetDontKnowBtn" class="reset-inline-btn hidden">Reset</button>
+      </div>
+      <div class="tag-filter-row" id="dontKnowFilterRow"></div>
+      <div class="word-list full-list" id="dontKnowList"></div>
+    </section>
+
+    <!-- ============ PROGRESS: MASTERED ============ -->
+    <section id="progressMasteredScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="progressMasteredBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Mastered words</span>
+        <button id="resetMasteredBtn" class="reset-inline-btn hidden">Reset</button>
+      </div>
+      <div class="tag-filter-row" id="masteredFilterRow"></div>
+      <div class="word-list full-list" id="masteredList"></div>
     </section>
 
     <!-- ============ ADD WORD ============ -->
@@ -233,7 +271,7 @@
 
   </div>
 
-  <script src="data.js?v=39"></script>
-  <script src="script.js?v=39"></script>
+  <script src="data.js?v=47"></script>
+  <script src="script.js?v=47"></script>
 </body>
 </html>

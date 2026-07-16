@@ -270,7 +270,11 @@ function primaryTag(tags){
   return tags[0] || null;
 }
 function tintOf(tag){
-  return TINT_VARS[tag ? tagClass(tag) : 'hsk1'];
+  // custom tags get their own badge color (see tagClass/tagHue) but intentionally don't drive
+  // accent theming (Start button, score circle, question card) — that stays tied to the 5
+  // built-in lists, falling back to the neutral 'other' tint for any custom tag
+  const cls = tag ? tagClass(tag) : 'hsk1';
+  return TINT_VARS[cls] || TINT_VARS.other;
 }
 
 /* ---------- storage ---------- */
@@ -553,8 +557,8 @@ function renderList(){
   });
 }
 
-/* ---------- progress: words ever answered wrong / marked "I don't know", across all lists ---------- */
-function buildWordRow(w, clearField){
+/* ---------- progress: words ever answered wrong / marked "I don't know" / mastered ---------- */
+function buildWordRow(w, clearField, onCleared){
   const seen = w.correct + w.wrong;
   const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
   const badges = w.tags.map(badgeHTML).join(' ');
@@ -573,17 +577,19 @@ function buildWordRow(w, clearField){
   if (clearField) {
     row.querySelector('.del-btn').onclick = () => {
       clearWordStat(w.c, w.m, clearField);
-      renderProgress();
+      if (onCleared) onCleared();
     };
   }
   return row;
 }
 
-function renderProgressTagOptions(){
+// shared by each dedicated progress list screen — progressTags itself stays one global
+// selection (not per-screen), only the control to change it moved off the My Progress hub
+function renderProgressFilterRow(containerId, onChange){
   const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
   // drop selected tags that no longer exist (e.g. after deleting the last custom word with that tag)
   progressTags.forEach(t => { if (!tags.includes(t)) progressTags.delete(t); });
-  const row = document.getElementById('progressFilterRow');
+  const row = document.getElementById(containerId);
   row.innerHTML = '';
   tags.forEach(t => {
     const btn = document.createElement('button');
@@ -596,7 +602,7 @@ function renderProgressTagOptions(){
     btn.onclick = () => {
       if (progressTags.has(t)) progressTags.delete(t); else progressTags.add(t);
       refresh();
-      renderProgress();
+      onChange();
     };
     refresh();
     row.appendChild(btn);
@@ -607,32 +613,70 @@ function progressPool(){
   return combinedPool().filter(w => progressTags.size === 0 || w.tags.some(t => progressTags.has(t)));
 }
 
+// My Progress is a hub: just counts + a link to each category's own dedicated screen (they can
+// get long — see progressWrong/progressDontKnow/progressMastered, which each own their filter row)
 function renderProgress(){
-  renderProgressTagOptions();
   const pool = progressPool();
-  const wrongWords = pool.filter(w => w.wrong > 0).sort((a, b) => b.wrong - a.wrong);
-  const dontKnowWords = pool.filter(w => w.dontknow > 0).sort((a, b) => b.dontknow - a.dontknow);
-
-  const wrongBox = document.getElementById('wrongList');
-  wrongBox.innerHTML = '';
-  if (wrongWords.length === 0) {
-    wrongBox.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No wrong answers yet — nice!</div>';
-  } else {
-    wrongWords.forEach(w => wrongBox.appendChild(buildWordRow(w, 'wrong')));
-  }
-
-  const dkBox = document.getElementById('dontKnowList');
-  dkBox.innerHTML = '';
-  if (dontKnowWords.length === 0) {
-    dkBox.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">Nothing marked "I don\'t know" yet.</div>';
-  } else {
-    dontKnowWords.forEach(w => dkBox.appendChild(buildWordRow(w, 'dontknow')));
-  }
-
+  document.getElementById('progressWrongCount').textContent = pool.filter(w => w.wrong > 0).length;
+  document.getElementById('progressDontKnowCount').textContent = pool.filter(w => w.dontknow > 0).length;
+  document.getElementById('progressMasteredCount').textContent = pool.filter(w => w.correct > 0).length;
   document.getElementById('resetProgressBtn').textContent = progressTags.size === 0
     ? 'Reset all progress'
     : `Reset progress for ${[...progressTags].join(', ')}`;
 }
+
+function renderProgressWrong(){
+  renderProgressFilterRow('wrongFilterRow', renderProgressWrong);
+  const wrongWords = progressPool().filter(w => w.wrong > 0).sort((a, b) => b.wrong - a.wrong);
+  const box = document.getElementById('wrongList');
+  box.innerHTML = '';
+  if (wrongWords.length === 0) {
+    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No wrong answers yet — nice!</div>';
+  } else {
+    wrongWords.forEach(w => box.appendChild(buildWordRow(w, 'wrong', renderProgressWrong)));
+  }
+  document.getElementById('resetWrongBtn').classList.toggle('hidden', wrongWords.length === 0);
+}
+
+function renderProgressDontKnow(){
+  renderProgressFilterRow('dontKnowFilterRow', renderProgressDontKnow);
+  const dontKnowWords = progressPool().filter(w => w.dontknow > 0).sort((a, b) => b.dontknow - a.dontknow);
+  const box = document.getElementById('dontKnowList');
+  box.innerHTML = '';
+  if (dontKnowWords.length === 0) {
+    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">Nothing marked "I don\'t know" yet.</div>';
+  } else {
+    dontKnowWords.forEach(w => box.appendChild(buildWordRow(w, 'dontknow', renderProgressDontKnow)));
+  }
+  document.getElementById('resetDontKnowBtn').classList.toggle('hidden', dontKnowWords.length === 0);
+}
+
+function renderProgressMastered(){
+  renderProgressFilterRow('masteredFilterRow', renderProgressMastered);
+  const masteredWords = progressPool().filter(w => w.correct > 0).sort((a, b) => b.correct - a.correct);
+  const box = document.getElementById('masteredList');
+  box.innerHTML = '';
+  if (masteredWords.length === 0) {
+    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No mastered words yet.</div>';
+  } else {
+    // clearing a mastered word's "correct" count un-masters it, so it can appear in quizzes again
+    masteredWords.forEach(w => box.appendChild(buildWordRow(w, 'correct', renderProgressMastered)));
+  }
+  document.getElementById('resetMasteredBtn').classList.toggle('hidden', masteredWords.length === 0);
+}
+
+// clears just one stat field across the filtered pool, leaving the other fields untouched —
+// unlike "Reset all progress" on the hub, which wipes every field for those words
+function resetProgressField(field, label, onDone){
+  const scopeLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
+  const ok = confirm(`Clear "${label}" history for ${scopeLabel}? This can't be undone.`);
+  if (!ok) return;
+  progressPool().forEach(w => clearWordStat(w.c, w.m, field));
+  onDone();
+}
+document.getElementById('resetWrongBtn').onclick = () => resetProgressField('wrong', "gotten wrong", renderProgressWrong);
+document.getElementById('resetDontKnowBtn').onclick = () => resetProgressField('dontknow', "marked I don't know", renderProgressDontKnow);
+document.getElementById('resetMasteredBtn').onclick = () => resetProgressField('correct', "mastered", renderProgressMastered);
 
 document.getElementById('resetProgressBtn').onclick = () => {
   const scopeLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
@@ -781,11 +825,38 @@ function clusterSenses(entries){
   });
   return clusters;
 }
+const HSK_LEVEL_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4'];
+
+// hard mode looks for a character's other senses beyond just the current round's pool: pick
+// HSK1..the highest HSK level currently selected on Home, cumulatively, regardless of which
+// levels are actually toggled on (e.g. selecting only HSK3 still checks HSK1-3, since a learner
+// at HSK3 already knows lower levels) — plus ES1 too, if it's currently active. There's no
+// special ES1 exclusion: clusterSenses already merges genuine duplicates (identical pinyin or
+// meaning) into a single sense regardless of source, so mixing HSK+ES1 doesn't double up
+// near-identical entries — only real polyphones (different pinyin AND different meaning, from
+// any source) end up as separate required senses. If no HSK level is selected at all (e.g.
+// ES1-only or custom-only), falls back to the round's own pool, unchanged from before.
+function senseLookupPool(roundPool){
+  let maxIdx = -1;
+  activeTags.forEach(t => {
+    const idx = HSK_LEVEL_ORDER.indexOf(t);
+    if (idx > maxIdx) maxIdx = idx;
+  });
+  if (maxIdx === -1) return roundPool;
+  const levels = new Set(HSK_LEVEL_ORDER.slice(0, maxIdx + 1));
+  if (activeTags.has('ES1')) levels.add('ES1');
+  return combinedPool().filter(w => w.tags.some(t => levels.has(t)));
+}
+
 // the set of pool entries a question must require selecting for `word`'s character — just
-// [word] unless hard mode is on and its character genuinely has multiple senses in this pool
+// [word] unless hard mode is on and its character genuinely has multiple senses in the lookup
+// pool. Only ever expands the *quiz* behavior — normal (non-hard) mode always returns [word],
+// so a word's meaning always matches exactly the level it was picked from, never substituted.
 function requiredSensesFor(word, pool){
   if (!hardMode) return [word];
-  const sameChar = pool.filter(w => w.c === word.c);
+  const lookupPool = senseLookupPool(pool);
+  let sameChar = lookupPool.filter(w => w.c === word.c);
+  if (!sameChar.includes(word)) sameChar = [...sameChar, word];
   if (sameChar.length < 2) return [word];
   const clusters = clusterSenses(sameChar);
   if (clusters.length < 2) return [word];
@@ -958,7 +1029,11 @@ function newQuestion(){
     multiSelectHint.classList.add('hidden');
     submitBtn.classList.add('hidden');
     feedback.innerHTML = requiredWords.map(w => `
-      <div class="feedback-sense"><span class="feedback-pinyin">${spacedPinyin(w.p)}</span><span class="feedback-meaning">${w.m}</span></div>
+      <div class="feedback-sense">
+        ${isMultiSense ? `<span class="feedback-tags">${w.tags.map(badgeHTML).join('')}</span>` : ''}
+        <span class="feedback-pinyin">${spacedPinyin(w.p)}</span>
+        <span class="feedback-meaning">${w.m}</span>
+      </div>
     `).join('');
     feedback.className = 'feedback revealed';
     document.getElementById('quizMetaList').innerHTML = requiredWords.map(w => `
@@ -1072,7 +1147,7 @@ document.getElementById('newRoundBtn').onclick = () => {
 document.getElementById('startBtn').onclick = () => showScreen('quiz');
 
 /* ---------- navigation ---------- */
-const SCREENS = ['home', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'addWord', 'wordDetail'];
+const SCREENS = ['home', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'addWord', 'wordDetail'];
 function showScreen(name){
   SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
   screen = name;
@@ -1081,6 +1156,9 @@ function showScreen(name){
   if (name === 'results') renderResults();
   if (name === 'wordDecks') { renderListFilterOptions(); renderDeckTopicFilter(); renderList(); }
   if (name === 'myProgress') renderProgress();
+  if (name === 'progressWrong') renderProgressWrong();
+  if (name === 'progressDontKnow') renderProgressDontKnow();
+  if (name === 'progressMastered') renderProgressMastered();
   if (name === 'addWord') { renderAddWordLevelOptions(); renderAddWordTopicOptions(); renderAddWordPosOptions(); }
   if (name === 'wordDetail') renderWordDetail();
 }
@@ -1118,8 +1196,14 @@ document.getElementById('quizExitBtn').onclick = () => showScreen('home');
 document.getElementById('settingsBackBtn').onclick = () => showScreen(screenBeforeSettings);
 document.getElementById('openWordDecksBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDecksBackBtn').onclick = () => showScreen('settings');
-document.getElementById('openMyProgressBtn').onclick = () => showScreen('myProgress');
-document.getElementById('myProgressBackBtn').onclick = () => showScreen('settings');
+document.getElementById('homeProgressBtn').onclick = () => showScreen('myProgress');
+document.getElementById('myProgressBackBtn').onclick = () => showScreen('home');
+document.getElementById('openProgressWrongBtn').onclick = () => showScreen('progressWrong');
+document.getElementById('progressWrongBackBtn').onclick = () => showScreen('myProgress');
+document.getElementById('openProgressDontKnowBtn').onclick = () => showScreen('progressDontKnow');
+document.getElementById('progressDontKnowBackBtn').onclick = () => showScreen('myProgress');
+document.getElementById('openProgressMasteredBtn').onclick = () => showScreen('progressMastered');
+document.getElementById('progressMasteredBackBtn').onclick = () => showScreen('myProgress');
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDetailBackBtn').onclick = () => showScreen('wordDecks');
