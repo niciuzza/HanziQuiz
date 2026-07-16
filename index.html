@@ -10,7 +10,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=47">
+<link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
   <div class="app">
@@ -41,6 +41,7 @@
       <p class="pool-count" id="poolCount"></p>
 
       <button id="startBtn" class="primary-btn">Start</button>
+      <button id="resumeBtn" class="primary-btn resume-btn hidden">▶ Resume round</button>
     </section>
 
     <!-- ============ QUIZ ============ -->
@@ -202,6 +203,8 @@
         <button id="resetWrongBtn" class="reset-inline-btn hidden">Reset</button>
       </div>
       <div class="tag-filter-row" id="wrongFilterRow"></div>
+      <div class="tag-filter-row" id="wrongSortRow"></div>
+      <button id="practiceWrongBtn" class="primary-btn practice-btn hidden">▶ Practice these words</button>
       <div class="word-list full-list" id="wrongList"></div>
     </section>
 
@@ -213,6 +216,8 @@
         <button id="resetDontKnowBtn" class="reset-inline-btn hidden">Reset</button>
       </div>
       <div class="tag-filter-row" id="dontKnowFilterRow"></div>
+      <div class="tag-filter-row" id="dontKnowSortRow"></div>
+      <button id="practiceDontKnowBtn" class="primary-btn practice-btn hidden">▶ Practice these words</button>
       <div class="word-list full-list" id="dontKnowList"></div>
     </section>
 
@@ -224,6 +229,8 @@
         <button id="resetMasteredBtn" class="reset-inline-btn hidden">Reset</button>
       </div>
       <div class="tag-filter-row" id="masteredFilterRow"></div>
+      <div class="tag-filter-row" id="masteredSortRow"></div>
+      <button id="practiceMasteredBtn" class="primary-btn practice-btn hidden">▶ Practice these words</button>
       <div class="word-list full-list" id="masteredList"></div>
     </section>
 
@@ -271,7 +278,7 @@
 
   </div>
 
-  <script src="data.js?v=47"></script>
-  <script src="script.js?v=47"></script>
+  <script src="data.js?v=49"></script>
+  <script src="script.js?v=49"></script>
 </body>
 </html>

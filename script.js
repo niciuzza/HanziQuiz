@@ -247,7 +247,10 @@ function resolveRoundPool(taggedPool){
   }
   let roundSet = new Set(roundKeys);
   let resolved = taggedPool.filter(w => roundSet.has(statKey(w.c, w.m)));
-  if (resolved.length < Math.min(6, taggedPool.length)) {
+  // only repair-reroll if the round is genuinely empty (e.g. every one of its words got deleted);
+  // a deliberately small round (like "Practice these words" from My Progress) is fine as-is —
+  // numChoices elsewhere already scales the number of options down to match a small pool
+  if (resolved.length === 0) {
     rollRound(taggedPool);
     roundSet = new Set(roundKeys);
     resolved = taggedPool.filter(w => roundSet.has(statKey(w.c, w.m)));
@@ -392,6 +395,21 @@ function updateHomePoolCount(){
   const tv = tintOf(primaryTag([...activeTags]));
   startBtn.style.background = `var(${tv.solid})`;
   startBtn.style.borderColor = `var(${tv.solid})`;
+  updateResumeButton();
+}
+
+// looks up the in-progress round's own words directly by roundKeys (not through the Home
+// screen's current filteredPool()), so the Resume button stays accurate even if the player
+// has since poked at different list/topic filters without starting a new round
+function updateResumeButton(){
+  const resumeBtn = document.getElementById('resumeBtn');
+  if (!roundKeys) { resumeBtn.classList.add('hidden'); return; }
+  const keySet = new Set(roundKeys);
+  const pool = combinedPool().filter(w => keySet.has(statKey(w.c, w.m)));
+  const done = doneCount(pool);
+  if (pool.length === 0 || done >= pool.length) { resumeBtn.classList.add('hidden'); return; }
+  resumeBtn.textContent = `▶ Resume round (${done}/${pool.length})`;
+  resumeBtn.classList.remove('hidden');
 }
 
 // Shared topic filter widget: a dropdown that adds chips into a search-box-styled row.
@@ -625,9 +643,60 @@ function renderProgress(){
     : `Reset progress for ${[...progressTags].join(', ')}`;
 }
 
+// shared sort control for each dedicated progress screen — one mode applies across all three,
+// same as progressTags. 'list' groups by primary list (HSK1..HSK4, ES1, then custom tags),
+// falling back to `field` (wrong/dontknow/correct count) as a tiebreaker within the same list;
+// 'percent' sorts by accuracy ascending (worst first — the words most worth reviewing).
+let progressSortMode = 'list';
+const LIST_SORT_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'ES1'];
+function listSortIndex(tags){
+  const idx = LIST_SORT_ORDER.indexOf(primaryTag(tags));
+  return idx === -1 ? LIST_SORT_ORDER.length : idx;
+}
+function sortProgressWords(words, field){
+  const sorted = [...words];
+  if (progressSortMode === 'percent') {
+    sorted.sort((a, b) => {
+      const seenA = a.correct + a.wrong, seenB = b.correct + b.wrong;
+      const accA = seenA > 0 ? a.correct / seenA : -1;
+      const accB = seenB > 0 ? b.correct / seenB : -1;
+      return accA - accB;
+    });
+  } else {
+    sorted.sort((a, b) => listSortIndex(a.tags) - listSortIndex(b.tags) || b[field] - a[field]);
+  }
+  return sorted;
+}
+function renderProgressSortRow(containerId, onChange){
+  const row = document.getElementById(containerId);
+  row.innerHTML = '';
+  [['list', 'By list'], ['percent', 'By %']].forEach(([mode, label]) => {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    const refresh = () => { btn.className = progressSortMode === mode ? 'active' : ''; };
+    btn.onclick = () => { progressSortMode = mode; refresh(); onChange(); };
+    refresh();
+    row.appendChild(btn);
+  });
+}
+
+// starts a fresh round scoped to exactly these words, regardless of which lists are currently
+// selected on Home — broadens activeTags to cover whatever lists these words actually belong to
+// so they don't get filtered back out, then pins roundKeys directly to them
+function startPracticeRound(words){
+  if (words.length === 0) return;
+  activeTags = new Set(words.flatMap(w => w.tags));
+  activeTopics = new Set();
+  roundKeys = words.map(w => statKey(w.c, w.m));
+  score = 0; total = 0; streak = 0;
+  saveSession();
+  showScreen('quiz');
+}
+
 function renderProgressWrong(){
   renderProgressFilterRow('wrongFilterRow', renderProgressWrong);
-  const wrongWords = progressPool().filter(w => w.wrong > 0).sort((a, b) => b.wrong - a.wrong);
+  renderProgressSortRow('wrongSortRow', renderProgressWrong);
+  const wrongWords = sortProgressWords(progressPool().filter(w => w.wrong > 0), 'wrong');
   const box = document.getElementById('wrongList');
   box.innerHTML = '';
   if (wrongWords.length === 0) {
@@ -636,11 +705,16 @@ function renderProgressWrong(){
     wrongWords.forEach(w => box.appendChild(buildWordRow(w, 'wrong', renderProgressWrong)));
   }
   document.getElementById('resetWrongBtn').classList.toggle('hidden', wrongWords.length === 0);
+  const practiceBtn = document.getElementById('practiceWrongBtn');
+  practiceBtn.classList.toggle('hidden', wrongWords.length === 0);
+  practiceBtn.textContent = `▶ Practice these words (${wrongWords.length})`;
+  practiceBtn.onclick = () => startPracticeRound(wrongWords);
 }
 
 function renderProgressDontKnow(){
   renderProgressFilterRow('dontKnowFilterRow', renderProgressDontKnow);
-  const dontKnowWords = progressPool().filter(w => w.dontknow > 0).sort((a, b) => b.dontknow - a.dontknow);
+  renderProgressSortRow('dontKnowSortRow', renderProgressDontKnow);
+  const dontKnowWords = sortProgressWords(progressPool().filter(w => w.dontknow > 0), 'dontknow');
   const box = document.getElementById('dontKnowList');
   box.innerHTML = '';
   if (dontKnowWords.length === 0) {
@@ -649,11 +723,16 @@ function renderProgressDontKnow(){
     dontKnowWords.forEach(w => box.appendChild(buildWordRow(w, 'dontknow', renderProgressDontKnow)));
   }
   document.getElementById('resetDontKnowBtn').classList.toggle('hidden', dontKnowWords.length === 0);
+  const practiceBtn = document.getElementById('practiceDontKnowBtn');
+  practiceBtn.classList.toggle('hidden', dontKnowWords.length === 0);
+  practiceBtn.textContent = `▶ Practice these words (${dontKnowWords.length})`;
+  practiceBtn.onclick = () => startPracticeRound(dontKnowWords);
 }
 
 function renderProgressMastered(){
   renderProgressFilterRow('masteredFilterRow', renderProgressMastered);
-  const masteredWords = progressPool().filter(w => w.correct > 0).sort((a, b) => b.correct - a.correct);
+  renderProgressSortRow('masteredSortRow', renderProgressMastered);
+  const masteredWords = sortProgressWords(progressPool().filter(w => w.correct > 0), 'correct');
   const box = document.getElementById('masteredList');
   box.innerHTML = '';
   if (masteredWords.length === 0) {
@@ -663,6 +742,10 @@ function renderProgressMastered(){
     masteredWords.forEach(w => box.appendChild(buildWordRow(w, 'correct', renderProgressMastered)));
   }
   document.getElementById('resetMasteredBtn').classList.toggle('hidden', masteredWords.length === 0);
+  const practiceBtn = document.getElementById('practiceMasteredBtn');
+  practiceBtn.classList.toggle('hidden', masteredWords.length === 0);
+  practiceBtn.textContent = `▶ Practice these words (${masteredWords.length})`;
+  practiceBtn.onclick = () => startPracticeRound(masteredWords);
 }
 
 // clears just one stat field across the filtered pool, leaving the other fields untouched —
@@ -1144,7 +1227,14 @@ document.getElementById('newRoundBtn').onclick = () => {
   showScreen('home');
 };
 
-document.getElementById('startBtn').onclick = () => showScreen('quiz');
+document.getElementById('startBtn').onclick = () => {
+  // Start always begins a genuinely new round — Resume is the explicit way to continue
+  // whatever round was already in progress instead
+  roundKeys = null;
+  saveSession();
+  showScreen('quiz');
+};
+document.getElementById('resumeBtn').onclick = () => showScreen('quiz');
 
 /* ---------- navigation ---------- */
 const SCREENS = ['home', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'addWord', 'wordDetail'];

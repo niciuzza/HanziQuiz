@@ -293,6 +293,9 @@ input::placeholder{ color:var(--text-muted); }
 .home-title h1{ font-size:24px; font-weight:700; margin:0 0 6px; }
 .home-subtitle{ font-size:13px; color:var(--text-secondary); margin:0; }
 #startBtn{ margin-top:20px; }
+.resume-btn{ margin-top:10px; background:#0D9488; border-color:#0D9488; }
+.resume-btn:hover{ opacity:.9; }
+.practice-btn{ margin-bottom:14px; }
 
 /* ---------- Quiz ---------- */
 .quiz-progress-row{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
