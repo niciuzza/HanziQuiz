@@ -222,7 +222,7 @@ function resolveRoundPool(taggedPool){
   }
   let roundSet = new Set(roundKeys);
   let resolved = taggedPool.filter(w => roundSet.has(statKey(w.c, w.m)));
-  if (resolved.length < Math.min(4, taggedPool.length)) {
+  if (resolved.length < Math.min(6, taggedPool.length)) {
     rollRound(taggedPool);
     roundSet = new Set(roundKeys);
     resolved = taggedPool.filter(w => roundSet.has(statKey(w.c, w.m)));
@@ -334,14 +334,14 @@ function updateHomePoolCount(){
   const taggedPool = filteredPool();
   const poolCountEl = document.getElementById('poolCount');
   const startBtn = document.getElementById('startBtn');
-  if (taggedPool.length < 4) {
-    poolCountEl.textContent = 'Select word lists with at least 4 words total to play';
+  if (taggedPool.length < 6) {
+    poolCountEl.textContent = 'Select word lists with at least 6 words total to play';
     poolCountEl.classList.add('warning');
   } else {
     poolCountEl.textContent = `${taggedPool.length} words available in selected lists`;
     poolCountEl.classList.remove('warning');
   }
-  startBtn.disabled = taggedPool.length < 4;
+  startBtn.disabled = taggedPool.length < 6;
   const tv = tintOf(primaryTag([...activeTags]));
   startBtn.style.background = `var(${tv.solid})`;
   startBtn.style.borderColor = `var(${tv.solid})`;
@@ -765,7 +765,7 @@ function weightedPick(pool, excludeKey){
 
 function newQuestion(){
   const taggedPool = filteredPool();
-  if (taggedPool.length < 4) {
+  if (taggedPool.length < 6) {
     // shouldn't normally reach the quiz screen in this state (Home disables Start), but bail out safely
     showScreen('home');
     return;
@@ -860,7 +860,13 @@ function newQuestion(){
       newQuestion();
     };
     questionBox.onclick = advance;
-    setTimeout(() => { if (screen === 'quiz') advance(); }, 2500);
+    // the round's last word (this answer clears the pool) leads straight into the results
+    // screen — leave that reveal on-screen until the player taps it instead of auto-advancing,
+    // so they get a moment to see the round's final answer before "Round complete" appears.
+    const isRoundFinisher = outcome === 'correct' && done + 1 === pool.length;
+    if (!isRoundFinisher) {
+      setTimeout(() => { if (screen === 'quiz') advance(); }, 2500);
+    }
   }
 
   choiceWords.forEach(cw => {
