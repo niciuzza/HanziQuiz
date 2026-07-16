@@ -520,6 +520,7 @@ button.settings-menu-item:hover{ background:var(--surface-2); }
   overflow:hidden;
   background:var(--surface-2);
 }
+.detail-meta-list + .detail-meta-list{ margin-top:16px; }
 .detail-meta-row{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); font-size:14px; }
 .detail-meta-row:last-child{ border-bottom:none; }
 .detail-meta-label{ color:var(--text-secondary); font-weight:600; }
