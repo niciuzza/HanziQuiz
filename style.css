@@ -198,6 +198,17 @@ input::placeholder{ color:var(--text-muted); }
 .mode-switch-btn.active{ background:var(--surface-2); color:var(--text-primary); box-shadow:0 1px 3px rgba(0,0,0,.08); }
 
 /* ---------- Learning Mode: flashcards ---------- */
+.flashcard-card{
+  min-height:55vh;
+  padding:32px 16px;
+  cursor:pointer;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.flashcard-card:active{ opacity:.85; }
+.flashcard-card .q-main{ font-size:120px; margin-bottom:18px; }
+.flashcard-card .detail-pinyin{ font-size:22px; }
+.flashcard-card .detail-meaning{ font-size:23px; }
 .flashcard-hint{ font-size:13px; font-weight:600; color:var(--text-muted); text-align:center; margin:14px 0 0; }
 .flashcard-done{ text-align:center; padding:60px 20px 40px; }
 .flashcard-done p{ font-size:15px; font-weight:600; color:var(--text-primary); margin:0 0 24px; }
@@ -604,4 +615,6 @@ button.settings-menu-item:hover{ background:var(--surface-2); }
   .word-row .pinyin{ min-width:64px; }
   .options{ grid-template-columns:1fr 1fr; }
   .q-main{ font-size:44px; }
+  .flashcard-card{ min-height:50vh; }
+  .flashcard-card .q-main{ font-size:88px; }
 }
