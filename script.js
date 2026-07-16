@@ -210,9 +210,14 @@ function doneCount(pool){
 }
 
 /* ---------- round: a fixed random subset of the tag-filtered pool, sized by roundSize ---------- */
+// rolling a round means a fresh round is starting, so score/total/streak reset here too —
+// otherwise they'd keep accumulating across every round ever played instead of reflecting
+// just the round currently on screen (per-word correct/wrong history lives in statsMap
+// forever regardless, independent of this per-round tally).
 function rollRound(pool){
   const n = roundSize === 'all' ? pool.length : Math.min(roundSize, pool.length);
   roundKeys = pickRandom(pool, n, null).map(w => statKey(w.c, w.m));
+  score = 0; total = 0; streak = 0;
   saveSession();
 }
 function resolveRoundPool(taggedPool){
@@ -476,6 +481,8 @@ function renderList(){
   [...filtered].reverse().forEach(w => {
     const idx = words.findIndex(w2 => w2.c === w.c && w2.m === w.m);
     const badges = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join(' ');
+    const seen = w.correct + w.wrong;
+    const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
     const row = document.createElement('div');
     row.className = 'word-row clickable';
     row.innerHTML = `
@@ -484,6 +491,7 @@ function renderList(){
       <span class="meaning">${w.m}</span>
       <span class="row-meta">
         <span class="tags">${badges}</span>
+        <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
         ${idx !== -1 ? `<button class="del-btn" data-idx="${idx}" aria-label="Delete">✕</button>` : '<span class="del-btn-spacer"></span>'}
       </span>
     `;
@@ -963,6 +971,15 @@ function renderWordDetail(){
   document.getElementById('detailSpeakBtn').onclick = () => speak(w.c);
   const tv = tintOf(primaryTag(w.tags));
   document.getElementById('detailCard').style.background = `var(${tv.bg})`;
+
+  // lifetime stats for this word, fetched fresh (not from whatever fields the calling
+  // screen's row happened to carry) so they're always accurate
+  const s = getStats(w.c, w.m);
+  const seen = s.correct + s.wrong;
+  const acc = seen > 0 ? Math.round(100 * s.correct / seen) : null;
+  document.getElementById('detailCorrect').textContent = s.correct;
+  document.getElementById('detailWrong').textContent = s.wrong;
+  document.getElementById('detailAccuracy').textContent = acc !== null ? acc + '%' : 'No attempts yet';
 }
 
 document.getElementById('homeSettingsBtn').onclick = () => { screenBeforeSettings = 'home'; showScreen('settings'); };
