@@ -191,6 +191,18 @@ input::placeholder{ color:var(--text-muted); }
 
 .section-label{ font-size:13px; color:var(--text-secondary); margin:0 0 10px; font-weight:600; }
 
+/* ---------- Quiz / Learning mode switch (Home + Learning Mode home) ---------- */
+.mode-switch{ display:flex; gap:4px; padding:4px; border-radius:14px; background:var(--surface-1); margin-bottom:18px; }
+.mode-switch-btn{ flex:1; padding:9px; border-radius:10px; border:none; background:transparent; color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
+.mode-switch-btn:hover{ background:transparent; }
+.mode-switch-btn.active{ background:var(--surface-2); color:var(--text-primary); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
+/* ---------- Learning Mode: flashcards ---------- */
+.flashcard-hint{ font-size:13px; font-weight:600; color:var(--text-muted); text-align:center; margin:14px 0 0; }
+.flashcard-done{ text-align:center; padding:60px 20px 40px; }
+.flashcard-done p{ font-size:15px; font-weight:600; color:var(--text-primary); margin:0 0 24px; }
+.flashcard-done .results-actions{ max-width:320px; margin:0 auto; }
+
 .primary-btn{
   width:100%;
   padding:15px;

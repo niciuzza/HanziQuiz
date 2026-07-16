@@ -10,7 +10,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=51">
+<link rel="stylesheet" href="style.css?v=52">
 </head>
 <body>
   <div class="app">
@@ -20,6 +20,10 @@
       <div class="screen-header-end">
         <button class="icon-btn" id="homeProgressBtn" aria-label="My progress">◔</button>
         <button class="icon-btn" id="homeSettingsBtn" aria-label="Settings">⚙️</button>
+      </div>
+      <div class="mode-switch">
+        <button class="mode-switch-btn active" id="homeModeQuizBtn">Quiz</button>
+        <button class="mode-switch-btn" id="homeModeLearningBtn">Learning</button>
       </div>
       <div class="home-title">
         <h1>HanZi Quiz</h1>
@@ -42,6 +46,71 @@
 
       <button id="startBtn" class="primary-btn">Start</button>
       <button id="resumeBtn" class="primary-btn resume-btn hidden">▶ Resume round</button>
+    </section>
+
+    <!-- ============ LEARNING MODE HOME ============ -->
+    <section id="learningHomeScreen" class="hidden">
+      <div class="screen-header-end">
+        <button class="icon-btn" id="learningProgressBtn" aria-label="My progress">◔</button>
+        <button class="icon-btn" id="learningSettingsBtn" aria-label="Settings">⚙️</button>
+      </div>
+      <div class="mode-switch">
+        <button class="mode-switch-btn" id="learningModeQuizBtn">Quiz</button>
+        <button class="mode-switch-btn active" id="learningModeLearningBtn">Learning</button>
+      </div>
+      <div class="home-title">
+        <h1>Learning Mode</h1>
+        <p class="home-subtitle">Review vocabulary chapter by chapter, in the book's own order</p>
+      </div>
+
+      <p class="section-label">Pick a list</p>
+      <div class="tag-filter-row" id="learningListRow"></div>
+
+      <div id="learningChapterSection" class="hidden">
+        <p class="section-label">Pick chapter(s)</p>
+        <div class="topic-filter-box" id="learningChapterFilterBox">
+          <div class="topic-chips" id="learningChapterChips"></div>
+          <select id="learningChapterSelect"></select>
+        </div>
+        <div class="settings-menu" style="margin-bottom:14px;">
+          <div class="settings-menu-item">
+            <span>Include all chapters before this one too</span>
+            <button class="toggle-switch" id="learningCumulativeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+          </div>
+        </div>
+      </div>
+
+      <p class="pool-count" id="learningPoolCount"></p>
+      <button id="learningStartBtn" class="primary-btn" disabled>Start</button>
+    </section>
+
+    <!-- ============ LEARNING MODE: FLASHCARDS ============ -->
+    <section id="flashcardsScreen" class="hidden">
+      <div class="screen-header-between">
+        <button class="icon-btn" id="flashcardBackBtn" aria-label="Back">←</button>
+        <span class="progress-pos" id="flashcardPositionText"></span>
+      </div>
+
+      <div class="question-box detail-card" id="flashcardCard">
+        <div class="q-tags" id="flashcardTags"></div>
+        <button class="detail-speak-btn" id="flashcardSpeakBtn" aria-label="play audio">🔊</button>
+        <div class="q-main" id="flashcardChar">-</div>
+        <div id="flashcardRevealInfo" class="hidden">
+          <p class="detail-pinyin" id="flashcardPinyin"></p>
+          <p class="detail-meaning" id="flashcardMeaning"></p>
+        </div>
+      </div>
+      <p class="flashcard-hint" id="flashcardRevealHint">Tap the card to reveal the answer</p>
+
+      <button id="flashcardNextBtn" class="primary-btn hidden">Next</button>
+
+      <div class="flashcard-done hidden" id="flashcardDone">
+        <p id="flashcardDoneText"></p>
+        <div class="results-actions">
+          <button id="flashcardRestartBtn" class="primary-btn">Review again</button>
+          <button id="flashcardBackToPickerBtn" class="outline-btn">Back to Learning Mode</button>
+        </div>
+      </div>
     </section>
 
     <!-- ============ QUIZ ============ -->
@@ -283,7 +352,7 @@
 
   </div>
 
-  <script src="data.js?v=51"></script>
-  <script src="script.js?v=51"></script>
+  <script src="data.js?v=52"></script>
+  <script src="script.js?v=52"></script>
 </body>
 </html>
