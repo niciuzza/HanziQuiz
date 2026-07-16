@@ -10,7 +10,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=39">
 </head>
 <body>
   <div class="app">
@@ -61,16 +61,15 @@
         <div class="q-tags" id="qTags"></div>
         <div class="q-main" id="qMain">-</div>
         <p class="hint-text hidden" id="hintText"></p>
+        <p class="multi-select-hint hidden" id="multiSelectHint"></p>
         <p class="feedback" id="feedback"></p>
         <button class="hint-btn" id="hintBtn">💡 Hint</button>
       </div>
 
-      <div class="detail-meta-list hidden" id="quizMetaList">
-        <div class="detail-meta-row"><span class="detail-meta-label">Topic</span><span class="detail-meta-value" id="quizMetaTopic">—</span></div>
-        <div class="detail-meta-row"><span class="detail-meta-label">Part of speech</span><span class="detail-meta-value" id="quizMetaPos">—</span></div>
-      </div>
+      <div class="detail-meta-list hidden" id="quizMetaList"></div>
 
       <div class="options" id="options"></div>
+      <button id="submitAnswerBtn" class="submit-answer-btn hidden">Submit</button>
       <button id="dontKnowBtn" class="dont-know-link">🤷 I don't know</button>
     </section>
 
@@ -113,6 +112,10 @@
         <div class="settings-menu-item">
           <span>Play sound on answer</span>
           <button class="toggle-switch" id="autoPlaySoundToggle" role="switch" aria-checked="true"><span class="toggle-knob"></span></button>
+        </div>
+        <div class="settings-menu-item">
+          <span>Hard mode (multi-meaning words)</span>
+          <button class="toggle-switch" id="hardModeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
         </div>
       </div>
     </section>
@@ -230,7 +233,7 @@
 
   </div>
 
-  <script src="data.js?v=36"></script>
-  <script src="script.js?v=36"></script>
+  <script src="data.js?v=39"></script>
+  <script src="script.js?v=39"></script>
 </body>
 </html>

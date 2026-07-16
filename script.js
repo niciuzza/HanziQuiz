@@ -3,6 +3,7 @@ const STATS_KEY = 'hsk-vocab-stats';
 const SESSION_KEY = 'hsk-vocab-session';
 const THEME_KEY = 'hsk-vocab-theme';
 const AUTOPLAY_SOUND_KEY = 'hsk-vocab-autoplay-sound';
+const HARD_MODE_KEY = 'hsk-vocab-hard-mode';
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
@@ -21,6 +22,8 @@ const ROUND_SIZES = [25, 50, 100, 150, 200, 250];
 let progressTags = new Set(); // Settings' progress-list filter; empty means "all lists"
 let darkMode = false;
 let autoPlaySound = true;
+let hardMode = false; // when on, a character with 2+ genuinely distinct senses (see clusterSenses)
+                       // requires selecting all of them + Submit, instead of tap-one-to-answer
 let screen = 'home'; // 'home' | 'quiz' | 'results' | 'settings' | 'addWord'
 let screenBeforeSettings = 'home';
 
@@ -119,6 +122,23 @@ function toggleAutoPlaySound(){
   autoPlaySound = !autoPlaySound;
   try { localStorage.setItem(AUTOPLAY_SOUND_KEY, String(autoPlaySound)); } catch (e) {}
   applyAutoPlaySound();
+}
+
+/* ---------- hard mode: multi-meaning characters require selecting every sense ---------- */
+function loadHardMode(){
+  const saved = localStorage.getItem(HARD_MODE_KEY);
+  hardMode = saved === 'true';
+  applyHardMode();
+}
+function applyHardMode(){
+  const toggle = document.getElementById('hardModeToggle');
+  toggle.classList.toggle('on', hardMode);
+  toggle.setAttribute('aria-checked', String(hardMode));
+}
+function toggleHardMode(){
+  hardMode = !hardMode;
+  try { localStorage.setItem(HARD_MODE_KEY, String(hardMode)); } catch (e) {}
+  applyHardMode();
 }
 
 /* ---------- stats (per-word progress, keyed by character+meaning) ---------- */
@@ -278,7 +298,24 @@ function tagClass(tag){
   if (tag === 'HSK3') return 'hsk3';
   if (tag === 'HSK4') return 'hsk4';
   if (tag.startsWith('ES')) return 'es';
-  return 'other';
+  if (tag === 'untagged') return 'other';
+  return 'custom-tag';
+}
+
+// deterministic hue (0-359) from a custom list name, so the same name always renders the
+// same color; combined with the --tag-sat/--tag-bg-l/--tag-text-l tokens (defined per theme
+// alongside the rest of the color tokens) via the .badge.custom-tag / button.active.custom-tag
+// CSS rules, so it stays theme-aware without any JS re-render on a dark-mode toggle.
+function tagHue(tag){
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) hash = (hash * 31 + tag.charCodeAt(i)) >>> 0;
+  return hash % 360;
+}
+
+function badgeHTML(tag){
+  const cls = tagClass(tag);
+  const style = cls === 'custom-tag' ? ` style="--tag-hue:${tagHue(tag)}"` : '';
+  return `<span class="badge ${cls}"${style}>${tag}</span>`;
 }
 
 function renderTagOptions(){
@@ -293,6 +330,7 @@ function renderTagRow(containerId, tags){
     const btn = document.createElement('button');
     btn.textContent = t;
     const cls = tagClass(t);
+    if (cls === 'custom-tag') btn.style.setProperty('--tag-hue', tagHue(t));
     const refresh = () => {
       btn.className = activeTags.has(t) ? `active ${cls}` : '';
     };
@@ -433,6 +471,7 @@ function renderListFilterOptions(){
     const btn = document.createElement('button');
     btn.textContent = t;
     const cls = tagClass(t);
+    if (cls === 'custom-tag') btn.style.setProperty('--tag-hue', tagHue(t));
     const refresh = () => {
       btn.className = listFilterTags.has(t) ? `active ${cls}` : '';
     };
@@ -480,7 +519,7 @@ function renderList(){
   }
   [...filtered].reverse().forEach(w => {
     const idx = words.findIndex(w2 => w2.c === w.c && w2.m === w.m);
-    const badges = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join(' ');
+    const badges = w.tags.map(badgeHTML).join(' ');
     const seen = w.correct + w.wrong;
     const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
     const row = document.createElement('div');
@@ -518,7 +557,7 @@ function renderList(){
 function buildWordRow(w, clearField){
   const seen = w.correct + w.wrong;
   const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
-  const badges = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join(' ');
+  const badges = w.tags.map(badgeHTML).join(' ');
   const row = document.createElement('div');
   row.className = 'word-row';
   row.innerHTML = `
@@ -550,6 +589,7 @@ function renderProgressTagOptions(){
     const btn = document.createElement('button');
     btn.textContent = t;
     const cls = tagClass(t);
+    if (cls === 'custom-tag') btn.style.setProperty('--tag-hue', tagHue(t));
     const refresh = () => {
       btn.className = progressTags.has(t) ? `active ${cls}` : '';
     };
@@ -723,6 +763,35 @@ function syllableCount(p){
   return fixToneCase(p).split(' ').reduce((sum, tok) => sum + greedySyllables(tok).length, 0);
 }
 
+/* ---------- hard mode: grouping a character's pool entries into distinct senses ---------- */
+// HSK vs ES1 (and other cross-list pairs) frequently restate the exact same word with
+// slightly different pinyin notation (e.g. "dì(di)" vs "dìdi") or rephrased wording (e.g.
+// "dad" vs "dad; father") — neither should count as a second sense. Only characters that are
+// genuinely polyphonic (different reading AND different meaning, e.g. 还 hái "still" vs huán
+// "to return") should require selecting more than one option. So two entries are folded into
+// the same sense unless BOTH their normalized pinyin and their meaning differ.
+function normPinyinForSense(p){ return p.replace(/[()'\s]/g, '').toLowerCase(); }
+function normMeaningForSense(m){ return m.trim().toLowerCase(); }
+function clusterSenses(entries){
+  const clusters = [];
+  entries.forEach(e => {
+    const match = clusters.find(cl =>
+      normPinyinForSense(cl[0].p) === normPinyinForSense(e.p) || normMeaningForSense(cl[0].m) === normMeaningForSense(e.m));
+    if (match) match.push(e); else clusters.push([e]);
+  });
+  return clusters;
+}
+// the set of pool entries a question must require selecting for `word`'s character — just
+// [word] unless hard mode is on and its character genuinely has multiple senses in this pool
+function requiredSensesFor(word, pool){
+  if (!hardMode) return [word];
+  const sameChar = pool.filter(w => w.c === word.c);
+  if (sameChar.length < 2) return [word];
+  const clusters = clusterSenses(sameChar);
+  if (clusters.length < 2) return [word];
+  return clusters.map(cl => cl.includes(word) ? word : cl[0]);
+}
+
 // picks distractors that "look like" the correct word first before falling back to a
 // fully random pick, so wrong answers can't be eliminated on sight just because they're
 // an obviously different kind of word (e.g. a grammar particle next to a color) or an
@@ -807,18 +876,35 @@ function newQuestion(){
   lastWord = statKey(word.c, word.m);
   document.getElementById('qMain').textContent = word.c;
 
-  document.getElementById('qTags').innerHTML = word.tags
-    .map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join('');
+  document.getElementById('qTags').innerHTML = word.tags.map(badgeHTML).join('');
+
+  // hard mode: a genuinely polyphonic character (see clusterSenses) requires selecting every
+  // one of its senses, not just `word` — degrades to [word] (today's single-answer behavior)
+  // whenever hard mode is off or the character only has one sense in this pool
+  const requiredWords = requiredSensesFor(word, pool);
+  const isMultiSense = requiredWords.length > 1;
+  const selected = new Set(); // statKeys of currently-tapped cells, multi-sense mode only
+
+  const multiSelectHint = document.getElementById('multiSelectHint');
+  multiSelectHint.classList.toggle('hidden', !isMultiSense);
+  if (isMultiSense) multiSelectHint.textContent = `This word has ${requiredWords.length} meanings — select all that apply`;
+
+  const submitBtn = document.getElementById('submitAnswerBtn');
+  submitBtn.classList.toggle('hidden', !isMultiSense);
+  submitBtn.disabled = true;
 
   const hintBtn = document.getElementById('hintBtn');
   const hintText = document.getElementById('hintText');
   hintText.textContent = '';
   hintText.classList.add('hidden');
-  const hasHint = !!(word.topic || word.pos);
+  const hasHint = requiredWords.some(w => w.topic || w.pos);
   hintBtn.classList.toggle('hidden', !hasHint);
   hintBtn.onclick = (e) => {
     e.stopPropagation();
-    hintText.textContent = [word.topic, word.pos].filter(Boolean).join(' · ');
+    hintText.textContent = requiredWords.map(w => {
+      const parts = [w.topic, w.pos].filter(Boolean).join(' · ');
+      return isMultiSense ? `${spacedPinyin(w.p)}: ${parts}` : parts;
+    }).join(' | ');
     hintText.classList.remove('hidden');
     hintBtn.classList.add('hidden');
   };
@@ -828,8 +914,16 @@ function newQuestion(){
   opts.classList.remove('hidden');
 
   const numChoices = Math.min(6, pool.length);
-  const distractors = pickDistractors(pool, word, numChoices - 1);
-  const choiceWords = [...distractors, word].sort(() => Math.random() - 0.5);
+  let choiceWords;
+  if (isMultiSense) {
+    const requiredKeys = new Set(requiredWords.map(w => statKey(w.c, w.m)));
+    const distractorPool = pool.filter(w => !requiredKeys.has(statKey(w.c, w.m)));
+    const distractors = pickDistractors(distractorPool, word, Math.max(0, numChoices - requiredWords.length));
+    choiceWords = [...requiredWords, ...distractors].sort(() => Math.random() - 0.5);
+  } else {
+    const distractors = pickDistractors(pool, word, numChoices - 1);
+    choiceWords = [...distractors, word].sort(() => Math.random() - 0.5);
+  }
 
   let answered = false;
   function finishQuestion(outcome){ // outcome: 'correct' | 'wrong' | 'dontknow'
@@ -837,24 +931,40 @@ function newQuestion(){
     answered = true;
     if (document.activeElement) document.activeElement.blur();
     total++;
-    if (outcome === 'correct') {
+    if (isMultiSense) {
+      // credit/penalize each required sense individually based on whether it was actually
+      // selected, regardless of the overall exact-match outcome — so per-word mastery stays
+      // meaningful even when the question came out wrong because a sibling sense was missed
+      if (outcome === 'correct') { score++; streak++; } else { streak = 0; }
+      if (outcome === 'dontknow') {
+        requiredWords.forEach(w => bumpStat(w.c, w.m, 'dontknow'));
+      } else {
+        requiredWords.forEach(w => bumpStat(w.c, w.m, selected.has(statKey(w.c, w.m)) ? 'correct' : 'wrong'));
+      }
+    } else if (outcome === 'correct') {
       score++; streak++; bumpStat(word.c, word.m, 'correct');
     } else {
       streak = 0;
       bumpStat(word.c, word.m, outcome);
     }
     // reveal a single flashcard-style answer, matching the Word Detail screen's layout
-    // (character + pinyin + meaning + topic/POS), tinted green/red for correct/wrong instead
-    // of the list's own accent color; it auto-advances after a couple seconds, but
+    // (character + pinyin + meaning + topic/POS per sense), tinted green/red for correct/wrong
+    // instead of the list's own accent color; it auto-advances after a couple seconds, but
     // tapping/clicking the card jumps ahead immediately.
     opts.classList.add('hidden');
     dontKnowBtn.classList.add('hidden');
     hintBtn.classList.add('hidden');
     hintText.classList.add('hidden');
-    feedback.innerHTML = `<span class="feedback-pinyin">${spacedPinyin(word.p)}</span><span class="feedback-meaning">${word.m}</span>`;
+    multiSelectHint.classList.add('hidden');
+    submitBtn.classList.add('hidden');
+    feedback.innerHTML = requiredWords.map(w => `
+      <div class="feedback-sense"><span class="feedback-pinyin">${spacedPinyin(w.p)}</span><span class="feedback-meaning">${w.m}</span></div>
+    `).join('');
     feedback.className = 'feedback revealed';
-    document.getElementById('quizMetaTopic').textContent = word.topic || '—';
-    document.getElementById('quizMetaPos').textContent = word.pos || '—';
+    document.getElementById('quizMetaList').innerHTML = requiredWords.map(w => `
+      <div class="detail-meta-row"><span class="detail-meta-label">${isMultiSense ? spacedPinyin(w.p) + ' — Topic' : 'Topic'}</span><span class="detail-meta-value">${w.topic || '—'}</span></div>
+      <div class="detail-meta-row"><span class="detail-meta-label">${isMultiSense ? spacedPinyin(w.p) + ' — Part of speech' : 'Part of speech'}</span><span class="detail-meta-value">${w.pos || '—'}</span></div>
+    `).join('');
     document.getElementById('quizMetaList').classList.remove('hidden');
     document.getElementById('scoreOut').textContent = score;
     saveSession();
@@ -871,10 +981,19 @@ function newQuestion(){
     // the round's last word (this answer clears the pool) leads straight into the results
     // screen — leave that reveal on-screen until the player taps it instead of auto-advancing,
     // so they get a moment to see the round's final answer before "Round complete" appears.
-    const isRoundFinisher = outcome === 'correct' && done + 1 === pool.length;
+    // Checked by re-reading live stats rather than predicting a delta, since a correct
+    // multi-sense answer can mark 2+ pool entries done in one go, not just `word` alone.
+    const isRoundFinisher = outcome === 'correct' && pool.every(w => getStats(w.c, w.m).correct > 0);
     if (!isRoundFinisher) {
       setTimeout(() => { if (screen === 'quiz') advance(); }, 2500);
     }
+  }
+
+  function scoreMultiSelect(){
+    const requiredKeys = new Set(requiredWords.map(w => statKey(w.c, w.m)));
+    if (selected.size !== requiredKeys.size) return 'wrong';
+    for (const k of selected) if (!requiredKeys.has(k)) return 'wrong';
+    return 'correct';
   }
 
   choiceWords.forEach(cw => {
@@ -890,11 +1009,22 @@ function newQuestion(){
       <span class="option-meaning">${cw.m}</span>
     `;
     cell.querySelector('.speak-btn').onclick = (e) => { e.stopPropagation(); speak(cw.c); };
-    cell.onclick = () => finishQuestion(cw === word ? 'correct' : 'wrong');
+    if (isMultiSense) {
+      const cwKey = statKey(cw.c, cw.m);
+      cell.onclick = () => {
+        if (answered) return;
+        if (selected.has(cwKey)) { selected.delete(cwKey); cell.classList.remove('selected'); }
+        else { selected.add(cwKey); cell.classList.add('selected'); }
+        submitBtn.disabled = selected.size === 0;
+      };
+    } else {
+      cell.onclick = () => finishQuestion(cw === word ? 'correct' : 'wrong');
+    }
     cell.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && cell.onclick) { e.preventDefault(); cell.onclick(); } };
     opts.appendChild(cell);
   });
 
+  submitBtn.onclick = () => finishQuestion(scoreMultiSelect());
   dontKnowBtn.onclick = () => finishQuestion('dontknow');
 }
 
@@ -965,7 +1095,7 @@ function renderWordDetail(){
   document.getElementById('detailChar').textContent = w.c;
   document.getElementById('detailPinyin').textContent = spacedPinyin(w.p);
   document.getElementById('detailMeaning').textContent = w.m;
-  document.getElementById('detailListTags').innerHTML = w.tags.map(t => `<span class="badge ${tagClass(t)}">${t}</span>`).join('');
+  document.getElementById('detailListTags').innerHTML = w.tags.map(badgeHTML).join('');
   document.getElementById('detailTopic').textContent = w.topic || '—';
   document.getElementById('detailPos').textContent = w.pos || '—';
   document.getElementById('detailSpeakBtn').onclick = () => speak(w.c);
@@ -995,10 +1125,12 @@ document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks'
 document.getElementById('wordDetailBackBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('darkModeToggle').onclick = toggleDarkMode;
 document.getElementById('autoPlaySoundToggle').onclick = toggleAutoPlaySound;
+document.getElementById('hardModeToggle').onclick = toggleHardMode;
 
 /* ---------- init ---------- */
 loadTheme();
 loadAutoPlaySound();
+loadHardMode();
 loadStats();
 activeTags = new Set(Object.keys(BUILTIN_LISTS));
 loadSession(); // may override score/total/streak/activeTags/roundSize/roundKeys with a resumed session
