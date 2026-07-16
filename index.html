@@ -10,7 +10,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=50">
+<link rel="stylesheet" href="style.css?v=51">
 </head>
 <body>
   <div class="app">
@@ -138,6 +138,11 @@
           <input type="checkbox" id="overlapOnly">
           Show only words that overlap between lists
           <span class="overlap-count" id="overlapCount"></span>
+        </label>
+        <label class="overlap-toggle">
+          <input type="checkbox" id="chapterTaggedOnly">
+          Show only chapter-tagged words
+          <span class="overlap-count" id="chapterTaggedCount"></span>
         </label>
       </div>
       <p class="count-label" id="countLabel">0 words saved</p>
@@ -278,7 +283,7 @@
 
   </div>
 
-  <script src="data.js?v=50"></script>
-  <script src="script.js?v=50"></script>
+  <script src="data.js?v=51"></script>
+  <script src="script.js?v=51"></script>
 </body>
 </html>

@@ -15,6 +15,7 @@ let listSearch = '';
 let listFilterTags = new Set();
 let listFilterTopics = new Set(); // Word Decks' own topic filter — independent of Home's activeTopics
 let overlapOnly = false;
+let chapterTaggedOnly = false;
 const UNSEEN_BONUS = 8; // weight multiplier for words never asked before (correct+wrong+dontknow === 0)
 let roundSize = 'all'; // 25|50|100|150|200|250|'all' — how many unique words make up the current round
 let roundKeys = null; // array of statKeys in the current round, or null if not yet rolled
@@ -486,6 +487,9 @@ function isOverlap(w){
 function countOverlaps(){
   return combinedPool().filter(isOverlap).length;
 }
+function countChapterTagged(){
+  return combinedPool().filter(w => w.chapter).length;
+}
 
 function renderListFilterOptions(){
   const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
@@ -513,10 +517,11 @@ function renderListFilterOptions(){
 
 function renderList(){
   document.getElementById('overlapCount').textContent = `(${countOverlaps()})`;
+  document.getElementById('chapterTaggedCount').textContent = `(${countChapterTagged()})`;
   const query = listSearch.trim();
   const hasQuery = query.length > 0;
   const hasFilter = listFilterTags.size > 0 || listFilterTopics.size > 0;
-  const expanded = hasQuery || hasFilter || overlapOnly;
+  const expanded = hasQuery || hasFilter || overlapOnly || chapterTaggedOnly;
   const q = detone(query); // lowercases + strips tone marks; a no-op for Chinese characters
   // with no search text, tag filter, or overlap toggle, show only your own custom words;
   // any of those look across the built-in lists too
@@ -525,6 +530,7 @@ function renderList(){
     : words.map(w => { const s = getStats(w.c, w.m); return { c: w.c, p: w.p, m: w.m, tags: w.tags, topic: w.topic, pos: w.pos, correct: s.correct, wrong: s.wrong }; });
   const filtered = source.filter(w => {
     if (overlapOnly && !isOverlap(w)) return false;
+    if (chapterTaggedOnly && !w.chapter) return false;
     if (listFilterTags.size && !w.tags.some(t => listFilterTags.has(t))) return false;
     if (listFilterTopics.size && !(w.topic && listFilterTopics.has(w.topic))) return false;
     if (!hasQuery) return true;
@@ -781,6 +787,11 @@ document.getElementById('searchWord').oninput = (e) => {
 
 document.getElementById('overlapOnly').onchange = (e) => {
   overlapOnly = e.target.checked;
+  renderList();
+};
+
+document.getElementById('chapterTaggedOnly').onchange = (e) => {
+  chapterTaggedOnly = e.target.checked;
   renderList();
 };
 
