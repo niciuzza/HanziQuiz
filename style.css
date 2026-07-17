@@ -205,9 +205,9 @@ input::placeholder{ color:var(--text-muted); }
 
 /* ---------- Quiz / Learning mode switch (Home + Learning Mode home) ---------- */
 .mode-switch{ display:flex; gap:4px; padding:4px; border-radius:var(--radius-lg); background:var(--surface-1); margin-bottom:18px; }
-.mode-switch-btn{ flex:1; padding:9px; border-radius:10px; border:none; background:transparent; color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
+.mode-switch-btn{ flex:1; padding:9px; border-radius:10px; border:1px solid transparent; background:transparent; color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
 .mode-switch-btn:hover{ background:transparent; }
-.mode-switch-btn.active{ background:var(--accent-bg); color:var(--accent-text); }
+.mode-switch-btn.active{ background:var(--accent-bg); color:var(--accent-text); border-color:var(--accent-text); box-shadow:0 1px 2px rgba(0,0,0,.08); }
 
 /* ---------- Learning Mode: flashcards ---------- */
 .flashcard-card{
@@ -273,18 +273,20 @@ input::placeholder{ color:var(--text-muted); }
 /* ---------- tag / round-size chip rows (shared) ---------- */
 .tag-filter-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
 .tag-filter-row button{ padding:7px 16px; border-radius:20px; font-size:13px; font-weight:600; }
-.tag-filter-row button.active{ background:var(--accent-bg); color:var(--accent-text); border-color:transparent; }
-.tag-filter-row button.active.hsk1{ background:var(--accent-bg); color:var(--accent-text); border-color:transparent; }
-.tag-filter-row button.active.hsk2{ background:var(--hsk2-bg); color:var(--hsk2-text); border-color:transparent; }
-.tag-filter-row button.active.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); border-color:transparent; }
-.tag-filter-row button.active.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); border-color:transparent; }
-.tag-filter-row button.active.es{ background:var(--success-bg); color:var(--success-text); border-color:transparent; }
+.tag-filter-row button.active{ background:var(--accent-bg); color:var(--accent-text); border-color:var(--accent-text); box-shadow:0 1px 2px rgba(0,0,0,.06); }
+.tag-filter-row button.active.hsk1{ background:var(--accent-bg); color:var(--accent-text); border-color:var(--accent-text); }
+.tag-filter-row button.active.hsk2{ background:var(--hsk2-bg); color:var(--hsk2-text); border-color:var(--hsk2-text); }
+.tag-filter-row button.active.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); border-color:var(--hsk3-text); }
+.tag-filter-row button.active.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); border-color:var(--hsk4-text); }
+.tag-filter-row button.active.es{ background:var(--success-bg); color:var(--success-text); border-color:var(--success-text); }
 .tag-filter-row button.active.custom-tag{
   background:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-bg-l));
   color:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-text-l));
-  border-color:transparent;
+  border-color:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-text-l));
+  box-shadow:0 1px 2px rgba(0,0,0,.06);
 }
 .tag-filter-row button:not(.active){ color:var(--text-muted); background:transparent; }
+.tag-row-break{ flex-basis:100%; height:0; }
 .pool-count{ font-size:12px; color:var(--text-muted); margin:0 0 24px; font-weight:500; }
 .pool-count.warning{ color:var(--danger-text); font-weight:600; }
 
@@ -307,11 +309,13 @@ input::placeholder{ color:var(--text-muted); }
   gap:2px;
   background:var(--accent-bg);
   color:var(--accent-text);
-  padding:5px 6px 5px 12px;
+  border:1px solid var(--accent-text);
+  padding:4px 5px 4px 11px;
   border-radius:20px;
   font-size:12px;
   font-weight:600;
   white-space:nowrap;
+  box-shadow:0 1px 2px rgba(0,0,0,.06);
 }
 .topic-chip button{
   background:none;
@@ -427,7 +431,7 @@ input::placeholder{ color:var(--text-muted); }
 .option-main:hover{ transform:translateY(-2px); border-color:var(--accent-solid); }
 .option-main:focus{ outline:none; }
 .option-main:focus-visible{ outline:2px solid var(--accent-solid); outline-offset:2px; }
-.option-main.selected{ border-color:var(--accent-solid); background:var(--accent-bg); }
+.option-main.selected{ border-color:var(--accent-solid); background:var(--accent-bg); box-shadow:0 1px 2px rgba(0,0,0,.06); }
 .option-top{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
 .option-pinyin{ font-size:19px; font-weight:600; color:var(--text-primary); }
 .option-main .speak-btn{
