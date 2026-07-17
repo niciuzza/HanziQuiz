@@ -204,7 +204,7 @@ input::placeholder{ color:var(--text-muted); }
 .section-label{ font-size:13px; color:var(--text-secondary); margin:0 0 10px; font-weight:600; }
 
 /* ---------- Quiz / Learning mode switch (Home + Learning Mode home) ---------- */
-.mode-switch{ display:flex; gap:4px; padding:4px; border-radius:var(--radius-lg); background:var(--surface-1); margin-bottom:18px; }
+.mode-switch{ display:flex; gap:4px; padding:4px; border-radius:var(--radius-lg); background:var(--surface-2); border:1px solid var(--border); margin-bottom:18px; }
 .mode-switch-btn{ flex:1; padding:9px; border-radius:10px; border:1px solid transparent; background:transparent; color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
 .mode-switch-btn:hover{ background:transparent; }
 .mode-switch-btn.active{ background:var(--accent-bg); color:var(--accent-text); border-color:var(--accent-text); box-shadow:0 1px 2px rgba(0,0,0,.08); }
@@ -501,12 +501,13 @@ input::placeholder{ color:var(--text-muted); }
 .settings-menu{ display:flex; flex-direction:column; gap:10px; }
 .settings-menu-item{
   display:flex; align-items:center; justify-content:space-between;
-  padding:14px 16px; border-radius:var(--radius-lg); background:var(--surface-1);
-  border:none; margin:0; width:100%; box-sizing:border-box;
+  padding:14px 16px; border-radius:var(--radius-lg); background:var(--surface-2);
+  border:1px solid var(--border); margin:0; width:100%; box-sizing:border-box;
   font-family:inherit; font-size:14px; font-weight:600; color:var(--text-primary);
   cursor:pointer; text-align:left;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
 }
-button.settings-menu-item:hover{ background:var(--surface-2); }
+button.settings-menu-item:hover{ background:var(--surface-1); }
 .menu-chevron{ color:var(--text-muted); font-size:18px; line-height:1; }
 .toggle-switch{
   width:44px; height:26px; border-radius:20px;
