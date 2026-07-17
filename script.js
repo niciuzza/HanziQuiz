@@ -5,6 +5,15 @@ const THEME_KEY = 'hsk-vocab-theme';
 const AUTOPLAY_SOUND_KEY = 'hsk-vocab-autoplay-sound';
 const HARD_MODE_KEY = 'hsk-vocab-hard-mode';
 const SRS_KEY = 'hsk-vocab-srs';
+// build number = this script's own cache-busting "?v=" query param, so it's never a second
+// place that needs bumping — reading it back out just reflects whatever was already bumped
+const APP_BUILD = (() => {
+  try {
+    const src = document.currentScript && document.currentScript.src;
+    const m = src && src.match(/[?&]v=(\d+)/);
+    return m ? m[1] : '?';
+  } catch (e) { return '?'; }
+})();
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
@@ -1514,6 +1523,10 @@ document.getElementById('wordDetailBackBtn').onclick = () => showScreen('wordDec
 document.getElementById('darkModeToggle').onclick = toggleDarkMode;
 document.getElementById('autoPlaySoundToggle').onclick = toggleAutoPlaySound;
 document.getElementById('hardModeToggle').onclick = toggleHardMode;
+document.getElementById('appVersionBtn').textContent = `HanZi Quiz · Build ${APP_BUILD}`;
+document.getElementById('appVersionBtn').onclick = () => {
+  alert(`HanZi Quiz\nBuild ${APP_BUILD}\nWord lists: HSK1, HSK2, HSK3, HSK4, ES1`);
+};
 
 /* ---------- init ---------- */
 loadTheme();
