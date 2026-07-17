@@ -1544,3 +1544,11 @@ loadWords();
 // newQuestion()/showScreen already handle re-rolling an invalid round, jumping to Results
 // if it was already complete, or falling back to Home if the pool's too small now.
 showScreen(roundKeys ? 'quiz' : 'home');
+
+// offline support: cache name is tied to APP_BUILD (see sw.js), so bumping the usual ?v= is
+// all that's needed to invalidate stale cached assets
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`sw.js?v=${APP_BUILD}`).catch(() => {});
+  });
+}
