@@ -250,22 +250,22 @@ function combinedPool(){
   Object.entries(BUILTIN_LISTS).forEach(([tag, list]) => {
     list.forEach(([c, p, m, pos, topic, chapter]) => {
       const k = statKey(c, m);
-      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set(), pos: pos || null, topic: topic || null, chapter: chapter || null });
-      // a word can be shared across lists (e.g. also in HSK1); whichever list is merged first
-      // wins pos/topic, but chapter is ES1-book-specific, so always backfill it once known,
-      // regardless of merge order
-      if (!map.get(k).chapter && chapter) map.get(k).chapter = chapter;
+      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set(), pos: pos || null, topic: topic || null, chapters: {} });
+      // a word can be shared across lists (e.g. HSK1 and ES1 both teaching 八), each with its
+      // own book's own lesson order — a single word can genuinely have a different chapter
+      // number per list, so chapters is keyed by list tag rather than one shared value
+      if (chapter) map.get(k).chapters[tag] = chapter;
       map.get(k).tags.add(tag);
     });
   });
   words.forEach(w => {
     const k = statKey(w.c, w.m);
-    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set(), pos: w.pos || null, topic: w.topic || null, chapter: w.chapter || null });
+    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set(), pos: w.pos || null, topic: w.topic || null, chapters: {} });
     w.tags.forEach(t => map.get(k).tags.add(t));
   });
   return [...map.values()].map(w => {
     const s = getStats(w.c, w.m);
-    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, chapter: w.chapter, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
+    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, chapters: w.chapters, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
   });
 }
 
@@ -546,7 +546,7 @@ function learningPool(){
   if (!learningList) return [];
   const chapters = effectiveLearningChapters();
   if (chapters.size === 0) return [];
-  return combinedPool().filter(w => w.tags.includes(learningList) && chapters.has(w.chapter));
+  return combinedPool().filter(w => w.tags.includes(learningList) && chapters.has(w.chapters[learningList]));
 }
 
 function renderLearningHome(){
@@ -631,7 +631,8 @@ function renderFlashcard(){
   card.classList.remove('hidden');
   doneBox.classList.add('hidden');
   const w = flashcardPool[flashcardIndex];
-  const chapterBadge = w.chapter ? `<span class="badge">Ch ${w.chapter}</span>` : '';
+  const wordChapter = w.chapters[learningList];
+  const chapterBadge = wordChapter ? `<span class="badge">Ch ${wordChapter}</span>` : '';
   document.getElementById('flashcardTags').innerHTML = w.tags.map(badgeHTML).join('') + chapterBadge;
   document.getElementById('flashcardChar').textContent = w.c;
   document.getElementById('flashcardPinyin').textContent = spacedPinyin(w.p);
@@ -681,7 +682,7 @@ function countOverlaps(){
   return combinedPool().filter(isOverlap).length;
 }
 function countChapterTagged(){
-  return combinedPool().filter(w => w.chapter).length;
+  return combinedPool().filter(w => Object.keys(w.chapters).length > 0).length;
 }
 
 function renderListFilterOptions(){
@@ -723,7 +724,7 @@ function renderList(){
     : words.map(w => { const s = getStats(w.c, w.m); return { c: w.c, p: w.p, m: w.m, tags: w.tags, topic: w.topic, pos: w.pos, correct: s.correct, wrong: s.wrong }; });
   const filtered = source.filter(w => {
     if (overlapOnly && !isOverlap(w)) return false;
-    if (chapterTaggedOnly && !w.chapter) return false;
+    if (chapterTaggedOnly && Object.keys(w.chapters || {}).length === 0) return false;
     if (listFilterTags.size && !w.tags.some(t => listFilterTags.has(t))) return false;
     if (listFilterTopics.size && !(w.topic && listFilterTopics.has(w.topic))) return false;
     if (!hasQuery) return true;
