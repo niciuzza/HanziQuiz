@@ -1528,7 +1528,7 @@ document.getElementById('autoPlaySoundToggle').onclick = toggleAutoPlaySound;
 document.getElementById('hardModeToggle').onclick = toggleHardMode;
 document.getElementById('appVersionBtn').textContent = `HanZi Quiz · Build ${APP_BUILD}`;
 document.getElementById('appVersionBtn').onclick = () => {
-  alert(`HanZi Quiz\nBuild ${APP_BUILD}\nWord lists: HSK1, HSK2, HSK3, HSK4, ES1`);
+  alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-4 — official HSK 3.0 vocabulary lists\nES1 — Easy Steps to Chinese 1 (textbook)`);
 };
 
 /* ---------- init ---------- */
