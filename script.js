@@ -372,6 +372,35 @@ function tagClass(tag){
   return 'custom-tag';
 }
 
+// which visual row a list tag belongs in wherever list-picker buttons are rendered: HSK1-4
+// together, then ES1 (and future ES2/ES3 as they're added) on their own row below, regardless
+// of container width — see appendTagRowBreak()
+function tagGroup(tag){
+  if (tag.startsWith('HSK')) return 'hsk';
+  if (tag.startsWith('ES')) return 'es';
+  return 'other';
+}
+// inserts a forced line-break in a flex-wrap tag row when the group changes (see tagGroup),
+// so callers just need to pass the previous tag in the iteration alongside the current one
+function appendTagRowBreak(container, tag, prevTag){
+  if (prevTag && tagGroup(tag) !== tagGroup(prevTag)) {
+    container.appendChild(document.createElement('span')).className = 'tag-row-break';
+  }
+}
+// tags collected from combinedPool() (via a Set over each word's own tags) end up in
+// whatever order words happened to be merged in, not list order — e.g. a word shared between
+// HSK1 and ES1 can make 'ES1' appear before 'HSK2' just because that shared word was merged
+// early. Sort explicitly instead of relying on incidental insertion order: HSK1-4 first (in
+// numeric order), then ES1/ES2/ES3.. (also numeric), then any custom list tags alphabetically.
+function sortListTags(tags){
+  const groupOrder = { hsk: 0, es: 1, other: 2 };
+  return [...tags].sort((a, b) => {
+    const ga = tagGroup(a), gb = tagGroup(b);
+    if (ga !== gb) return groupOrder[ga] - groupOrder[gb];
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+
 // deterministic hue (0-359) from a custom list name, so the same name always renders the
 // same color; combined with the --tag-sat/--tag-bg-l/--tag-text-l tokens (defined per theme
 // alongside the rest of the color tokens) via the .badge.custom-tag / button.active.custom-tag
@@ -389,14 +418,17 @@ function badgeHTML(tag){
 }
 
 function renderTagOptions(){
-  const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
+  const tags = sortListTags(new Set(combinedPool().flatMap(w => w.tags)));
   document.getElementById('tagOptions').innerHTML = tags.map(t => `<option value="${t}">`).join('');
   renderTagRow('tagFilterRow', tags);
 }
 function renderTagRow(containerId, tags){
   const filterRow = document.getElementById(containerId);
   filterRow.innerHTML = '';
+  let prevTag = null;
   tags.forEach(t => {
+    appendTagRowBreak(filterRow, t, prevTag);
+    prevTag = t;
     const btn = document.createElement('button');
     btn.textContent = t;
     const cls = tagClass(t);
@@ -562,7 +594,10 @@ function learningPool(){
 function renderLearningHome(){
   const listRow = document.getElementById('learningListRow');
   listRow.innerHTML = '';
+  let prevListTag = null;
   chapterTaggedListTags().forEach(t => {
+    appendTagRowBreak(listRow, t, prevListTag);
+    prevListTag = t;
     const btn = document.createElement('button');
     btn.textContent = t;
     const cls = tagClass(t);
@@ -697,12 +732,15 @@ function countChapterTagged(){
 }
 
 function renderListFilterOptions(){
-  const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
+  const tags = sortListTags(new Set(combinedPool().flatMap(w => w.tags)));
   const filterRow = document.getElementById('listFilterRow');
   filterRow.innerHTML = '';
   // drop selected tags that no longer exist (e.g. after deleting the last custom word with that tag)
   listFilterTags.forEach(t => { if (!tags.includes(t)) listFilterTags.delete(t); });
+  let prevTag = null;
   tags.forEach(t => {
+    appendTagRowBreak(filterRow, t, prevTag);
+    prevTag = t;
     const btn = document.createElement('button');
     btn.textContent = t;
     const cls = tagClass(t);
@@ -819,12 +857,15 @@ function buildWordRow(w, clearField, onCleared){
 // shared by each dedicated progress list screen — progressTags itself stays one global
 // selection (not per-screen), only the control to change it moved off the My Progress hub
 function renderProgressFilterRow(containerId, onChange){
-  const tags = [...new Set(combinedPool().flatMap(w => w.tags))];
+  const tags = sortListTags(new Set(combinedPool().flatMap(w => w.tags)));
   // drop selected tags that no longer exist (e.g. after deleting the last custom word with that tag)
   progressTags.forEach(t => { if (!tags.includes(t)) progressTags.delete(t); });
   const row = document.getElementById(containerId);
   row.innerHTML = '';
+  let prevTag = null;
   tags.forEach(t => {
+    appendTagRowBreak(row, t, prevTag);
+    prevTag = t;
     const btn = document.createElement('button');
     btn.textContent = t;
     const cls = tagClass(t);
@@ -1005,7 +1046,13 @@ function renderAddWordLevelOptions(){
   const row = document.getElementById('addWordLevelRow');
   row.innerHTML = '';
   const current = document.getElementById('inTag').value.trim();
+  let prevTag = null;
+  // hardcoded rather than derived from BUILTIN_LISTS since this offers every built-in list as
+  // an Add Word destination regardless of whether the user has any words in it yet — add future
+  // lists (e.g. ES2/ES3) here too when they're added to data.js
   ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'ES1'].forEach(t => {
+    appendTagRowBreak(row, t, prevTag);
+    prevTag = t;
     const btn = document.createElement('button');
     btn.textContent = t;
     const cls = tagClass(t);
