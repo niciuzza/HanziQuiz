@@ -544,9 +544,10 @@ function chapterTaggedListTags(){
   return Object.keys(BUILTIN_LISTS).filter(t => chaptersForList(t).length > 0);
 }
 // ticking chapter 8 with the cumulative toggle on reviews 1-8, not just 8 — same idea as hard
-// mode's cumulative HSK-level lookup (see senseLookupPool()/HSK_LEVEL_ORDER)
+// mode's cumulative HSK-level lookup (see senseLookupPool()/HSK_LEVEL_ORDER). No chapters
+// explicitly ticked means "all chapters of this list" by default, not "none".
 function effectiveLearningChapters(){
-  if (learningChapters.size === 0) return new Set();
+  if (learningChapters.size === 0) return new Set(chaptersForList(learningList));
   if (!learningCumulative) return new Set(learningChapters);
   const maxChapter = Math.max(...learningChapters);
   return new Set(chaptersForList(learningList).filter(c => c <= maxChapter));
@@ -591,8 +592,9 @@ function renderLearningHome(){
 
   const pool = learningPool();
   const duePool = pool.filter(isDue);
+  const allChaptersLabel = learningList && learningChapters.size === 0 ? ' (all chapters)' : '';
   document.getElementById('learningPoolCount').textContent = pool.length
-    ? `${pool.length} word${pool.length === 1 ? '' : 's'} in this selection · ${duePool.length} due for review today`
+    ? `${pool.length} word${pool.length === 1 ? '' : 's'} in this selection${allChaptersLabel} · ${duePool.length} due for review today`
     : 'Pick at least one chapter to continue';
   document.getElementById('learningStartBtn').disabled = pool.length === 0;
   document.getElementById('learningQuizBtn').disabled = pool.length === 0;
