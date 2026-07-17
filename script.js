@@ -15,6 +15,7 @@ let listSearch = '';
 let listFilterTags = new Set();
 let listFilterTopics = new Set(); // Word Decks' own topic filter — independent of Home's activeTopics
 let overlapOnly = false;
+let chapterTaggedOnly = false;
 const UNSEEN_BONUS = 8; // weight multiplier for words never asked before (correct+wrong+dontknow === 0)
 let roundSize = 'all'; // 25|50|100|150|200|250|'all' — how many unique words make up the current round
 let roundKeys = null; // array of statKeys in the current round, or null if not yet rolled
@@ -26,6 +27,14 @@ let hardMode = false; // when on, a character with 2+ genuinely distinct senses 
                        // requires selecting all of them + Submit, instead of tap-one-to-answer
 let screen = 'home'; // 'home' | 'quiz' | 'results' | 'settings' | 'addWord'
 let screenBeforeSettings = 'home';
+
+/* ---------- Learning Mode: chapter-by-chapter flashcard review (separate from the quiz) ---------- */
+let learningList = null; // built-in list tag currently picked, e.g. 'ES1', or null if none yet
+let learningChapters = new Set(); // chapter numbers explicitly ticked in the chip picker
+let learningCumulative = false; // "include all chapters before this one too"
+let flashcardPool = [];
+let flashcardIndex = 0;
+let flashcardRevealed = false;
 
 // topic/POS taxonomy for distractor grouping — a word's tags (HSK1/ES1/custom list)
 // are about which *list* it's in; topic/pos are orthogonal to that, and optional.
@@ -198,20 +207,24 @@ function saveSession(){
 function combinedPool(){
   const map = new Map();
   Object.entries(BUILTIN_LISTS).forEach(([tag, list]) => {
-    list.forEach(([c, p, m, pos, topic]) => {
+    list.forEach(([c, p, m, pos, topic, chapter]) => {
       const k = statKey(c, m);
-      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set(), pos: pos || null, topic: topic || null });
+      if (!map.has(k)) map.set(k, { c, p, m, tags: new Set(), pos: pos || null, topic: topic || null, chapter: chapter || null });
+      // a word can be shared across lists (e.g. also in HSK1); whichever list is merged first
+      // wins pos/topic, but chapter is ES1-book-specific, so always backfill it once known,
+      // regardless of merge order
+      if (!map.get(k).chapter && chapter) map.get(k).chapter = chapter;
       map.get(k).tags.add(tag);
     });
   });
   words.forEach(w => {
     const k = statKey(w.c, w.m);
-    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set(), pos: w.pos || null, topic: w.topic || null });
+    if (!map.has(k)) map.set(k, { c: w.c, p: w.p, m: w.m, tags: new Set(), pos: w.pos || null, topic: w.topic || null, chapter: w.chapter || null });
     w.tags.forEach(t => map.get(k).tags.add(t));
   });
   return [...map.values()].map(w => {
     const s = getStats(w.c, w.m);
-    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
+    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, chapter: w.chapter, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
   });
 }
 
@@ -416,7 +429,7 @@ function updateResumeButton(){
 // Chips union together (any selected topic matches). Used on both Home (filters the quiz
 // pool, intersected with activeTags) and Word Decks (filters the word list, intersected
 // with listFilterTags) — each screen keeps its own Set and passes an onChange callback.
-function renderTopicChipFilter(chipsId, selectId, activeSet, onChange){
+function renderTopicChipFilter(chipsId, selectId, activeSet, onChange, options = TOPICS, placeholder = '+ Add a topic…'){
   const box = document.getElementById(chipsId);
   box.innerHTML = '';
   activeSet.forEach(t => {
@@ -430,8 +443,8 @@ function renderTopicChipFilter(chipsId, selectId, activeSet, onChange){
     box.appendChild(chip);
   });
   const select = document.getElementById(selectId);
-  const remaining = TOPICS.filter(t => !activeSet.has(t));
-  select.innerHTML = '<option value="" selected disabled>+ Add a topic…</option>'
+  const remaining = options.filter(t => !activeSet.has(t));
+  select.innerHTML = `<option value="" selected disabled>${placeholder}</option>`
     + remaining.map(t => `<option value="${t}">${t}</option>`).join('');
   select.classList.toggle('hidden', remaining.length === 0);
 }
@@ -470,6 +483,138 @@ document.getElementById('deckTopicSelect').onchange = (e) => {
   renderList();
 };
 
+/* ---------- Learning Mode: list/chapter picker ---------- */
+function chaptersForList(tag){
+  const list = BUILTIN_LISTS[tag] || [];
+  const chapters = new Set();
+  list.forEach(([, , , , , chapter]) => { if (chapter) chapters.add(chapter); });
+  return [...chapters].sort((a, b) => a - b);
+}
+function chapterTaggedListTags(){
+  return Object.keys(BUILTIN_LISTS).filter(t => chaptersForList(t).length > 0);
+}
+// ticking chapter 8 with the cumulative toggle on reviews 1-8, not just 8 — same idea as hard
+// mode's cumulative HSK-level lookup (see senseLookupPool()/HSK_LEVEL_ORDER)
+function effectiveLearningChapters(){
+  if (learningChapters.size === 0) return new Set();
+  if (!learningCumulative) return new Set(learningChapters);
+  const maxChapter = Math.max(...learningChapters);
+  return new Set(chaptersForList(learningList).filter(c => c <= maxChapter));
+}
+function learningPool(){
+  if (!learningList) return [];
+  const chapters = effectiveLearningChapters();
+  if (chapters.size === 0) return [];
+  return combinedPool().filter(w => w.tags.includes(learningList) && chapters.has(w.chapter));
+}
+
+function renderLearningHome(){
+  const listRow = document.getElementById('learningListRow');
+  listRow.innerHTML = '';
+  chapterTaggedListTags().forEach(t => {
+    const btn = document.createElement('button');
+    btn.textContent = t;
+    const cls = tagClass(t);
+    if (cls === 'custom-tag') btn.style.setProperty('--tag-hue', tagHue(t));
+    btn.className = learningList === t ? `active ${cls}` : '';
+    btn.onclick = () => {
+      if (learningList !== t) {
+        learningList = t;
+        learningChapters = new Set();
+        learningCumulative = false;
+      }
+      renderLearningHome();
+    };
+    listRow.appendChild(btn);
+  });
+
+  const chapterSection = document.getElementById('learningChapterSection');
+  chapterSection.classList.toggle('hidden', !learningList);
+  if (learningList) {
+    renderTopicChipFilter('learningChapterChips', 'learningChapterSelect', learningChapters, () => {
+      renderLearningHome();
+    }, chaptersForList(learningList), '+ Add a chapter…');
+    const cumToggle = document.getElementById('learningCumulativeToggle');
+    cumToggle.classList.toggle('on', learningCumulative);
+    cumToggle.setAttribute('aria-checked', String(learningCumulative));
+  }
+
+  const pool = learningPool();
+  document.getElementById('learningPoolCount').textContent = pool.length
+    ? `${pool.length} word${pool.length === 1 ? '' : 's'} in this selection`
+    : 'Pick at least one chapter to continue';
+  document.getElementById('learningStartBtn').disabled = pool.length === 0;
+  document.getElementById('learningQuizBtn').disabled = pool.length === 0;
+}
+document.getElementById('learningChapterSelect').onchange = (e) => {
+  const v = e.target.value;
+  if (!v) return;
+  learningChapters.add(Number(v));
+  renderLearningHome();
+};
+document.getElementById('learningCumulativeToggle').onclick = () => {
+  learningCumulative = !learningCumulative;
+  renderLearningHome();
+};
+document.getElementById('learningStartBtn').onclick = () => startFlashcards();
+document.getElementById('learningQuizBtn').onclick = () => startPracticeRound(learningPool());
+document.getElementById('homeModeLearningBtn').onclick = () => showScreen('learningHome');
+document.getElementById('learningModeQuizBtn').onclick = () => showScreen('home');
+
+/* ---------- Learning Mode: flashcards ---------- */
+function startFlashcards(){
+  const pool = learningPool();
+  if (pool.length === 0) return;
+  flashcardPool = pickRandom(pool, pool.length, null);
+  flashcardIndex = 0;
+  flashcardRevealed = false;
+  showScreen('flashcards');
+}
+function renderFlashcard(){
+  const card = document.getElementById('flashcardCard');
+  const doneBox = document.getElementById('flashcardDone');
+  const nextBtn = document.getElementById('flashcardNextBtn');
+  const hint = document.getElementById('flashcardRevealHint');
+  if (flashcardIndex >= flashcardPool.length) {
+    card.classList.add('hidden');
+    hint.classList.add('hidden');
+    nextBtn.classList.add('hidden');
+    doneBox.classList.remove('hidden');
+    document.getElementById('flashcardDoneText').textContent =
+      `You've reviewed all ${flashcardPool.length} word${flashcardPool.length === 1 ? '' : 's'} in this selection.`;
+    document.getElementById('flashcardPositionText').textContent = '';
+    return;
+  }
+  card.classList.remove('hidden');
+  doneBox.classList.add('hidden');
+  const w = flashcardPool[flashcardIndex];
+  const chapterBadge = w.chapter ? `<span class="badge">Ch ${w.chapter}</span>` : '';
+  document.getElementById('flashcardTags').innerHTML = w.tags.map(badgeHTML).join('') + chapterBadge;
+  document.getElementById('flashcardChar').textContent = w.c;
+  document.getElementById('flashcardPinyin').textContent = spacedPinyin(w.p);
+  document.getElementById('flashcardMeaning').textContent = w.m;
+  document.getElementById('flashcardSpeakBtn').onclick = (e) => { e.stopPropagation(); speak(w.c); };
+  document.getElementById('flashcardRevealInfo').classList.toggle('hidden', !flashcardRevealed);
+  hint.classList.toggle('hidden', flashcardRevealed);
+  nextBtn.classList.toggle('hidden', !flashcardRevealed);
+  document.getElementById('flashcardPositionText').textContent = `${flashcardIndex + 1} / ${flashcardPool.length}`;
+}
+function revealFlashcard(){
+  if (flashcardRevealed) return;
+  flashcardRevealed = true;
+  renderFlashcard();
+}
+function nextFlashcard(){
+  flashcardIndex++;
+  flashcardRevealed = false;
+  renderFlashcard();
+}
+document.getElementById('flashcardCard').onclick = revealFlashcard;
+document.getElementById('flashcardNextBtn').onclick = nextFlashcard;
+document.getElementById('flashcardRestartBtn').onclick = startFlashcards;
+document.getElementById('flashcardBackBtn').onclick = () => showScreen('learningHome');
+document.getElementById('flashcardBackToPickerBtn').onclick = () => showScreen('learningHome');
+
 /* ---------- word list (Settings: your own custom words) ---------- */
 // if 2+ built-in list tags (HSK1/HSK2/ES1) are selected in the filter row, "overlap" means
 // present in every one of those selected lists; otherwise it falls back to present in any 2+
@@ -481,6 +626,9 @@ function isOverlap(w){
 }
 function countOverlaps(){
   return combinedPool().filter(isOverlap).length;
+}
+function countChapterTagged(){
+  return combinedPool().filter(w => w.chapter).length;
 }
 
 function renderListFilterOptions(){
@@ -509,10 +657,11 @@ function renderListFilterOptions(){
 
 function renderList(){
   document.getElementById('overlapCount').textContent = `(${countOverlaps()})`;
+  document.getElementById('chapterTaggedCount').textContent = `(${countChapterTagged()})`;
   const query = listSearch.trim();
   const hasQuery = query.length > 0;
   const hasFilter = listFilterTags.size > 0 || listFilterTopics.size > 0;
-  const expanded = hasQuery || hasFilter || overlapOnly;
+  const expanded = hasQuery || hasFilter || overlapOnly || chapterTaggedOnly;
   const q = detone(query); // lowercases + strips tone marks; a no-op for Chinese characters
   // with no search text, tag filter, or overlap toggle, show only your own custom words;
   // any of those look across the built-in lists too
@@ -521,6 +670,7 @@ function renderList(){
     : words.map(w => { const s = getStats(w.c, w.m); return { c: w.c, p: w.p, m: w.m, tags: w.tags, topic: w.topic, pos: w.pos, correct: s.correct, wrong: s.wrong }; });
   const filtered = source.filter(w => {
     if (overlapOnly && !isOverlap(w)) return false;
+    if (chapterTaggedOnly && !w.chapter) return false;
     if (listFilterTags.size && !w.tags.some(t => listFilterTags.has(t))) return false;
     if (listFilterTopics.size && !(w.topic && listFilterTopics.has(w.topic))) return false;
     if (!hasQuery) return true;
@@ -777,6 +927,11 @@ document.getElementById('searchWord').oninput = (e) => {
 
 document.getElementById('overlapOnly').onchange = (e) => {
   overlapOnly = e.target.checked;
+  renderList();
+};
+
+document.getElementById('chapterTaggedOnly').onchange = (e) => {
+  chapterTaggedOnly = e.target.checked;
   renderList();
 };
 
@@ -1237,11 +1392,13 @@ document.getElementById('startBtn').onclick = () => {
 document.getElementById('resumeBtn').onclick = () => showScreen('quiz');
 
 /* ---------- navigation ---------- */
-const SCREENS = ['home', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'addWord', 'wordDetail'];
+const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'addWord', 'wordDetail'];
 function showScreen(name){
   SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
   screen = name;
   if (name === 'home') { renderTopicFilter(); updateHomePoolCount(); }
+  if (name === 'learningHome') renderLearningHome();
+  if (name === 'flashcards') renderFlashcard();
   if (name === 'quiz') newQuestion();
   if (name === 'results') renderResults();
   if (name === 'wordDecks') { renderListFilterOptions(); renderDeckTopicFilter(); renderList(); }
@@ -1287,6 +1444,10 @@ document.getElementById('settingsBackBtn').onclick = () => showScreen(screenBefo
 document.getElementById('openWordDecksBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDecksBackBtn').onclick = () => showScreen('settings');
 document.getElementById('homeProgressBtn').onclick = () => showScreen('myProgress');
+document.getElementById('learningProgressBtn').onclick = () => showScreen('myProgress');
+document.getElementById('learningSettingsBtn').onclick = () => { screenBeforeSettings = 'learningHome'; showScreen('settings'); };
+document.getElementById('homeModeQuizBtn').onclick = () => showScreen('home');
+document.getElementById('learningModeLearningBtn').onclick = () => showScreen('learningHome');
 document.getElementById('myProgressBackBtn').onclick = () => showScreen('home');
 document.getElementById('openProgressWrongBtn').onclick = () => showScreen('progressWrong');
 document.getElementById('progressWrongBackBtn').onclick = () => showScreen('myProgress');
