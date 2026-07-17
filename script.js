@@ -1537,7 +1537,7 @@ loadAutoPlaySound();
 loadHardMode();
 loadStats();
 loadSrs();
-activeTags = new Set(Object.keys(BUILTIN_LISTS));
+activeTags = new Set(); // no word list selected by default — the user picks explicitly
 loadSession(); // may override score/total/streak/activeTags/roundSize/roundKeys with a resumed session
 loadWords();
 // resume straight into an unfinished round on reload instead of always landing on Home;
