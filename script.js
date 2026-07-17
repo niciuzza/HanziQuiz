@@ -544,6 +544,7 @@ function renderLearningHome(){
     ? `${pool.length} word${pool.length === 1 ? '' : 's'} in this selection`
     : 'Pick at least one chapter to continue';
   document.getElementById('learningStartBtn').disabled = pool.length === 0;
+  document.getElementById('learningQuizBtn').disabled = pool.length === 0;
 }
 document.getElementById('learningChapterSelect').onchange = (e) => {
   const v = e.target.value;
@@ -556,6 +557,7 @@ document.getElementById('learningCumulativeToggle').onclick = () => {
   renderLearningHome();
 };
 document.getElementById('learningStartBtn').onclick = () => startFlashcards();
+document.getElementById('learningQuizBtn').onclick = () => startPracticeRound(learningPool());
 document.getElementById('homeModeLearningBtn').onclick = () => showScreen('learningHome');
 document.getElementById('learningModeQuizBtn').onclick = () => showScreen('home');
 
