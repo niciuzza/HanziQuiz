@@ -4,6 +4,7 @@ const SESSION_KEY = 'hsk-vocab-session';
 const THEME_KEY = 'hsk-vocab-theme';
 const AUTOPLAY_SOUND_KEY = 'hsk-vocab-autoplay-sound';
 const HARD_MODE_KEY = 'hsk-vocab-hard-mode';
+const SRS_KEY = 'hsk-vocab-srs';
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
@@ -35,6 +36,11 @@ let learningCumulative = false; // "include all chapters before this one too"
 let flashcardPool = [];
 let flashcardIndex = 0;
 let flashcardRevealed = false;
+// Ebbinghaus-style review schedule, day-level only (no intraday steps like 5min/30min/12hr —
+// this is a local app with no notifications to pull someone back that soon, so the schedule
+// starts at "1 day" and stretches out from there as a word keeps being recalled instantly).
+const SRS_INTERVALS_DAYS = [1, 2, 4, 7, 15, 31];
+let srsMap = {}; // key (c::m) -> { intervalIndex, nextReviewAt, lastRatedAt }, set only by flashcard self-ratings
 
 // topic/POS taxonomy for distractor grouping — a word's tags (HSK1/ES1/custom list)
 // are about which *list* it's in; topic/pos are orthogonal to that, and optional.
@@ -180,6 +186,41 @@ function loadStats(){
 }
 function saveStats(){
   try { localStorage.setItem(STATS_KEY, JSON.stringify(statsMap)); } catch (e) {}
+}
+
+/* ---------- spaced repetition (flashcard self-ratings only — quiz answers never touch this) ---------- */
+function loadSrs(){
+  try {
+    const raw = localStorage.getItem(SRS_KEY);
+    srsMap = raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    srsMap = {};
+  }
+}
+function saveSrs(){
+  try { localStorage.setItem(SRS_KEY, JSON.stringify(srsMap)); } catch (e) {}
+}
+function getSrs(c, m){ return srsMap[statKey(c, m)] || null; }
+// a word with no rating history yet is always due — it hasn't been reviewed, so there's nothing
+// to wait out
+function isDue(w){
+  const s = getSrs(w.c, w.m);
+  return !s || s.nextReviewAt <= Date.now();
+}
+// rating: 'unknown' resets the schedule to day 1 (regardless of prior progress); 'hesitant'
+// repeats the current step without advancing; 'instant' advances one step (capped at the
+// longest interval, which then just keeps repeating at that spacing)
+function rateFlashcard(w, rating){
+  const k = statKey(w.c, w.m);
+  const cur = srsMap[k];
+  const curIdx = cur ? cur.intervalIndex : -1;
+  let idx;
+  if (rating === 'unknown') idx = 0;
+  else if (rating === 'hesitant') idx = Math.max(curIdx, 0);
+  else idx = Math.min(curIdx + 1, SRS_INTERVALS_DAYS.length - 1);
+  const days = SRS_INTERVALS_DAYS[idx];
+  srsMap[k] = { intervalIndex: idx, nextReviewAt: Date.now() + days * 86400000, lastRatedAt: Date.now() };
+  saveSrs();
 }
 
 /* ---------- session (score/streak + which lists/round are active, so a reload resumes the game) ---------- */
@@ -540,11 +581,13 @@ function renderLearningHome(){
   }
 
   const pool = learningPool();
+  const duePool = pool.filter(isDue);
   document.getElementById('learningPoolCount').textContent = pool.length
-    ? `${pool.length} word${pool.length === 1 ? '' : 's'} in this selection`
+    ? `${pool.length} word${pool.length === 1 ? '' : 's'} in this selection · ${duePool.length} due for review today`
     : 'Pick at least one chapter to continue';
   document.getElementById('learningStartBtn').disabled = pool.length === 0;
   document.getElementById('learningQuizBtn').disabled = pool.length === 0;
+  document.getElementById('learningReviewDueBtn').disabled = duePool.length === 0;
 }
 document.getElementById('learningChapterSelect').onchange = (e) => {
   const v = e.target.value;
@@ -558,12 +601,12 @@ document.getElementById('learningCumulativeToggle').onclick = () => {
 };
 document.getElementById('learningStartBtn').onclick = () => startFlashcards();
 document.getElementById('learningQuizBtn').onclick = () => startPracticeRound(learningPool());
+document.getElementById('learningReviewDueBtn').onclick = () => startFlashcards(learningPool().filter(isDue));
 document.getElementById('homeModeLearningBtn').onclick = () => showScreen('learningHome');
 document.getElementById('learningModeQuizBtn').onclick = () => showScreen('home');
 
 /* ---------- Learning Mode: flashcards ---------- */
-function startFlashcards(){
-  const pool = learningPool();
+function startFlashcards(pool = learningPool()){
   if (pool.length === 0) return;
   flashcardPool = pickRandom(pool, pool.length, null);
   flashcardIndex = 0;
@@ -573,12 +616,12 @@ function startFlashcards(){
 function renderFlashcard(){
   const card = document.getElementById('flashcardCard');
   const doneBox = document.getElementById('flashcardDone');
-  const nextBtn = document.getElementById('flashcardNextBtn');
+  const rateRow = document.getElementById('flashcardRateRow');
   const hint = document.getElementById('flashcardRevealHint');
   if (flashcardIndex >= flashcardPool.length) {
     card.classList.add('hidden');
     hint.classList.add('hidden');
-    nextBtn.classList.add('hidden');
+    rateRow.classList.add('hidden');
     doneBox.classList.remove('hidden');
     document.getElementById('flashcardDoneText').textContent =
       `You've reviewed all ${flashcardPool.length} word${flashcardPool.length === 1 ? '' : 's'} in this selection.`;
@@ -596,22 +639,32 @@ function renderFlashcard(){
   document.getElementById('flashcardSpeakBtn').onclick = (e) => { e.stopPropagation(); speak(w.c); };
   document.getElementById('flashcardRevealInfo').classList.toggle('hidden', !flashcardRevealed);
   hint.classList.toggle('hidden', flashcardRevealed);
-  nextBtn.classList.toggle('hidden', !flashcardRevealed);
+  rateRow.classList.toggle('hidden', !flashcardRevealed);
   document.getElementById('flashcardPositionText').textContent = `${flashcardIndex + 1} / ${flashcardPool.length}`;
 }
 function revealFlashcard(){
   if (flashcardRevealed) return;
   flashcardRevealed = true;
   renderFlashcard();
+  if (autoPlaySound) speak(flashcardPool[flashcardIndex].c);
 }
 function nextFlashcard(){
   flashcardIndex++;
   flashcardRevealed = false;
   renderFlashcard();
 }
+// a rating button both records the self-assessment (which reschedules the word's next
+// review per the Ebbinghaus-style day intervals) and advances to the next card in one tap
+function rateAndAdvance(rating){
+  const w = flashcardPool[flashcardIndex];
+  rateFlashcard(w, rating);
+  nextFlashcard();
+}
 document.getElementById('flashcardCard').onclick = revealFlashcard;
-document.getElementById('flashcardNextBtn').onclick = nextFlashcard;
-document.getElementById('flashcardRestartBtn').onclick = startFlashcards;
+document.getElementById('flashcardRateUnknownBtn').onclick = () => rateAndAdvance('unknown');
+document.getElementById('flashcardRateHesitantBtn').onclick = () => rateAndAdvance('hesitant');
+document.getElementById('flashcardRateInstantBtn').onclick = () => rateAndAdvance('instant');
+document.getElementById('flashcardRestartBtn').onclick = () => startFlashcards(flashcardPool);
 document.getElementById('flashcardBackBtn').onclick = () => showScreen('learningHome');
 document.getElementById('flashcardBackToPickerBtn').onclick = () => showScreen('learningHome');
 
@@ -1467,6 +1520,7 @@ loadTheme();
 loadAutoPlaySound();
 loadHardMode();
 loadStats();
+loadSrs();
 activeTags = new Set(Object.keys(BUILTIN_LISTS));
 loadSession(); // may override score/total/streak/activeTags/roundSize/roundKeys with a resumed session
 loadWords();
