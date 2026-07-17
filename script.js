@@ -646,6 +646,7 @@ function revealFlashcard(){
   if (flashcardRevealed) return;
   flashcardRevealed = true;
   renderFlashcard();
+  if (autoPlaySound) speak(flashcardPool[flashcardIndex].c);
 }
 function nextFlashcard(){
   flashcardIndex++;
