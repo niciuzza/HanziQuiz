@@ -395,7 +395,7 @@ const TINT_VARS = {
   hsk3: { bg: '--hsk3-bg', solid: '--hsk3-text' },
   hsk4: { bg: '--hsk4-bg', solid: '--hsk4-text' },
   hsk5: { bg: '--hsk5-bg', solid: '--hsk5-text' },
-  es: { bg: '--success-bg', solid: '--success-text' },
+  es: { bg: '--es-bg', solid: '--es-text' },
   other: { bg: '--surface-1', solid: '--accent-solid' },
 };
 function primaryTag(tags){
