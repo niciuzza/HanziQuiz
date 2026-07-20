@@ -37,10 +37,19 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // this app's own files: cache-first, so the app shell + vocabulary data work fully offline
+  // this app's own files: network-first, so a new deploy is picked up on the very next online
+  // load instead of getting stuck behind whichever build first got precached (see "Check for
+  // updates" in Settings for a manual way to force this too) — falls back to the cached copy
+  // when there's no network, so the app shell + vocabulary data still work fully offline
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request))
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }

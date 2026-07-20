@@ -1601,6 +1601,20 @@ document.getElementById('appVersionBtn').textContent = `HanZi Quiz · Build ${AP
 document.getElementById('appVersionBtn').onclick = () => {
   alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-4 — official HSK 3.0 vocabulary lists\nES1 — Easy Steps to Chinese 1 (textbook)`);
 };
+document.getElementById('checkUpdateBtn').onclick = async () => {
+  if (!('serviceWorker' in navigator)) { alert('Updates aren\'t supported in this browser.'); return; }
+  if (!navigator.onLine) { alert('You\'re offline — connect to the internet to check for updates.'); return; }
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((r) => r.unregister()));
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+  } catch (e) {}
+  // force a real network fetch of index.html — with the old service worker gone, this can't
+  // be served from a stale cache anymore. Your word lists, stats and settings (localStorage)
+  // are untouched by any of this.
+  location.reload();
+};
 
 /* ---------- init ---------- */
 loadTheme();
