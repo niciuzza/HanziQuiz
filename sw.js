@@ -5,6 +5,18 @@
 const params = new URLSearchParams(self.location.search);
 const VERSION = params.get('v') || 'dev';
 const CACHE_NAME = `hanziquiz-${VERSION}`;
+// "Offline mode" flag lives in its own cache, not tied to CACHE_NAME, so it survives version
+// bumps instead of resetting to off on every deploy. Written directly from script.js (the
+// Cache Storage API is available on window too, not just in here) via the Settings toggle.
+const META_CACHE_NAME = 'hanziquiz-meta';
+const OFFLINE_FLAG_URL = '/__offline-mode__';
+function isOfflineMode(){
+  return caches.open(META_CACHE_NAME)
+    .then((cache) => cache.match(OFFLINE_FLAG_URL))
+    .then((res) => res ? res.json() : { enabled: false })
+    .then((data) => !!data.enabled)
+    .catch(() => false);
+}
 
 const CORE_ASSETS = [
   './',
@@ -28,7 +40,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== META_CACHE_NAME).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -37,19 +49,25 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // this app's own files: network-first, so a new deploy is picked up on the very next online
-  // load instead of getting stuck behind whichever build first got precached (see "Check for
-  // updates" in Settings for a manual way to force this too) — falls back to the cached copy
-  // when there's no network, so the app shell + vocabulary data still work fully offline
+  // this app's own files: network-first by default, so a new deploy is picked up on the very
+  // next online load instead of getting stuck behind whichever build first got precached —
+  // falls back to the cached copy when there's no network. With Offline mode switched on in
+  // Settings, this flips to cache-first instead: pin to whatever's already cached and skip
+  // fetching updates entirely, until the user turns it back off.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
+      isOfflineMode().then((offline) => {
+        if (offline) {
+          return caches.match(event.request).then((cached) => cached || fetch(event.request));
+        }
+        return fetch(event.request)
+          .then((response) => {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+            return response;
+          })
+          .catch(() => caches.match(event.request));
+      })
     );
     return;
   }

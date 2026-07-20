@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=67">
+<link rel="stylesheet" href="style.css?v=68">
 </head>
 <body>
   <div class="app">
@@ -202,10 +202,10 @@
             <button class="mode-switch-btn" data-font="hand">Handwriting</button>
           </div>
         </div>
-        <button class="settings-menu-item" id="checkUpdateBtn">
-          <span>Check for updates</span>
-          <span class="menu-chevron">›</span>
-        </button>
+        <div class="settings-menu-item">
+          <span>Offline mode (skip checking for updates)</span>
+          <button class="toggle-switch" id="offlineModeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+        </div>
       </div>
 
       <button class="app-version-footer" id="appVersionBtn"></button>
@@ -376,7 +376,7 @@
 
   </div>
 
-  <script src="data.js?v=67"></script>
-  <script src="script.js?v=67"></script>
+  <script src="data.js?v=68"></script>
+  <script src="script.js?v=68"></script>
 </body>
 </html>

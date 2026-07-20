@@ -5,6 +5,7 @@ const THEME_KEY = 'hsk-vocab-theme';
 const AUTOPLAY_SOUND_KEY = 'hsk-vocab-autoplay-sound';
 const HARD_MODE_KEY = 'hsk-vocab-hard-mode';
 const HANZI_FONT_KEY = 'hsk-vocab-hanzi-font';
+const OFFLINE_MODE_KEY = 'hsk-vocab-offline-mode';
 const SRS_KEY = 'hsk-vocab-srs';
 // build number = this script's own cache-busting "?v=" query param, so it's never a second
 // place that needs bumping — reading it back out just reflects whatever was already bumped
@@ -36,6 +37,7 @@ let darkMode = false;
 let autoPlaySound = true;
 let hardMode = false; // when on, a character with 2+ genuinely distinct senses (see clusterSenses)
 let hanziFont = 'serif';
+let offlineMode = false;
                        // requires selecting all of them + Submit, instead of tap-one-to-answer
 let screen = 'home'; // 'home' | 'quiz' | 'results' | 'settings' | 'addWord'
 let screenBeforeSettings = 'home';
@@ -184,6 +186,33 @@ function setHanziFont(font){
   hanziFont = font;
   try { localStorage.setItem(HANZI_FONT_KEY, font); } catch (e) {}
   applyHanziFont();
+}
+
+/* ---------- offline mode: pins the service worker to cache-first (skip checking for updates)
+   instead of its normal network-first behavior. The flag itself lives in a small dedicated
+   Cache Storage entry (not localStorage) since that's what sw.js can actually read from its
+   fetch handler; see OFFLINE_FLAG_URL in sw.js. ---------- */
+const OFFLINE_META_CACHE = 'hanziquiz-meta';
+const OFFLINE_FLAG_URL = '/__offline-mode__';
+function loadOfflineMode(){
+  const saved = localStorage.getItem(OFFLINE_MODE_KEY);
+  offlineMode = saved === 'true';
+  applyOfflineMode();
+}
+function applyOfflineMode(){
+  const toggle = document.getElementById('offlineModeToggle');
+  toggle.classList.toggle('on', offlineMode);
+  toggle.setAttribute('aria-checked', String(offlineMode));
+  if ('caches' in window) {
+    caches.open(OFFLINE_META_CACHE)
+      .then((cache) => cache.put(OFFLINE_FLAG_URL, new Response(JSON.stringify({ enabled: offlineMode }))))
+      .catch(() => {});
+  }
+}
+function toggleOfflineMode(){
+  offlineMode = !offlineMode;
+  try { localStorage.setItem(OFFLINE_MODE_KEY, String(offlineMode)); } catch (e) {}
+  applyOfflineMode();
 }
 
 /* ---------- stats (per-word progress, keyed by character+meaning) ---------- */
@@ -1601,26 +1630,14 @@ document.getElementById('appVersionBtn').textContent = `HanZi Quiz · Build ${AP
 document.getElementById('appVersionBtn').onclick = () => {
   alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-4 — official HSK 3.0 vocabulary lists\nES1 — Easy Steps to Chinese 1 (textbook)`);
 };
-document.getElementById('checkUpdateBtn').onclick = async () => {
-  if (!('serviceWorker' in navigator)) { alert('Updates aren\'t supported in this browser.'); return; }
-  if (!navigator.onLine) { alert('You\'re offline — connect to the internet to check for updates.'); return; }
-  try {
-    const regs = await navigator.serviceWorker.getRegistrations();
-    await Promise.all(regs.map((r) => r.unregister()));
-    const keys = await caches.keys();
-    await Promise.all(keys.map((k) => caches.delete(k)));
-  } catch (e) {}
-  // force a real network fetch of index.html — with the old service worker gone, this can't
-  // be served from a stale cache anymore. Your word lists, stats and settings (localStorage)
-  // are untouched by any of this.
-  location.reload();
-};
+document.getElementById('offlineModeToggle').onclick = toggleOfflineMode;
 
 /* ---------- init ---------- */
 loadTheme();
 loadAutoPlaySound();
 loadHardMode();
 loadHanziFont();
+loadOfflineMode();
 loadStats();
 loadSrs();
 activeTags = new Set(); // no word list selected by default — the user picks explicitly
