@@ -17,7 +17,7 @@ const APP_BUILD = (() => {
     return m ? m[1] : '?';
   } catch (e) { return '?'; }
 })();
-const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, ES1: FULL_ES1 };
+const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, HSK5: FULL_HSK5, ES1: FULL_ES1 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
@@ -394,11 +394,12 @@ const TINT_VARS = {
   hsk2: { bg: '--hsk2-bg', solid: '--hsk2-text' },
   hsk3: { bg: '--hsk3-bg', solid: '--hsk3-text' },
   hsk4: { bg: '--hsk4-bg', solid: '--hsk4-text' },
+  hsk5: { bg: '--hsk5-bg', solid: '--hsk5-text' },
   es: { bg: '--success-bg', solid: '--success-text' },
   other: { bg: '--surface-1', solid: '--accent-solid' },
 };
 function primaryTag(tags){
-  const order = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'ES1'];
+  const order = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1'];
   for (const t of order) if (tags.includes(t)) return t;
   return tags[0] || null;
 }
@@ -434,6 +435,7 @@ function tagClass(tag){
   if (tag === 'HSK2') return 'hsk2';
   if (tag === 'HSK3') return 'hsk3';
   if (tag === 'HSK4') return 'hsk4';
+  if (tag === 'HSK5') return 'hsk5';
   if (tag.startsWith('ES')) return 'es';
   if (tag === 'untagged') return 'other';
   return 'custom-tag';
@@ -1008,11 +1010,11 @@ function renderProgress(){
 }
 
 // shared sort control for each dedicated progress screen — one mode applies across all three,
-// same as progressTags. 'list' groups by primary list (HSK1..HSK4, ES1, then custom tags),
+// same as progressTags. 'list' groups by primary list (HSK1..HSK5, ES1, then custom tags),
 // falling back to `field` (wrong/dontknow/correct count) as a tiebreaker within the same list;
 // 'percent' sorts by accuracy ascending (worst first — the words most worth reviewing).
 let progressSortMode = 'list';
-const LIST_SORT_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'ES1'];
+const LIST_SORT_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1'];
 function listSortIndex(tags){
   const idx = LIST_SORT_ORDER.indexOf(primaryTag(tags));
   return idx === -1 ? LIST_SORT_ORDER.length : idx;
@@ -1231,7 +1233,7 @@ function renderAddWordLevelOptions(){
   // hardcoded rather than derived from BUILTIN_LISTS since this offers every built-in list as
   // an Add Word destination regardless of whether the user has any words in it yet — add future
   // lists (e.g. ES2/ES3) here too when they're added to data.js
-  ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'ES1'].forEach(t => {
+  ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1'].forEach(t => {
     appendTagRowBreak(row, t, prevTag);
     prevTag = t;
     const btn = document.createElement('button');
@@ -1356,7 +1358,7 @@ function clusterSenses(entries){
   });
   return clusters;
 }
-const HSK_LEVEL_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4'];
+const HSK_LEVEL_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5'];
 
 // for a genuinely polyphonic single character (per clusterSenses, same definition hard mode
 // uses), find a compound word elsewhere in the pool that uses this exact reading, so a
@@ -1809,7 +1811,7 @@ setupHanziFontMenu('qFontBtn', 'qFontMenu');
 setupHanziFontMenu('flashcardFontBtn', 'flashcardFontMenu');
 document.getElementById('appVersionBtn').textContent = `HanZi Quiz · Build ${APP_BUILD}`;
 document.getElementById('appVersionBtn').onclick = () => {
-  alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-4 — official HSK 3.0 vocabulary lists\nES1 — Easy Steps to Chinese 1 (textbook)`);
+  alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-5 — official HSK 3.0 vocabulary lists\nES1 — Easy Steps to Chinese 1 (textbook)`);
 };
 document.getElementById('checkUpdateBtn').onclick = async () => {
   if (!('serviceWorker' in navigator)) { alert('Updates aren\'t supported in this browser.'); return; }
