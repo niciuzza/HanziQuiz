@@ -814,7 +814,7 @@ const FULL_HSK5 = [
 
 // Easy Steps to Chinese 2 (ES2) vocabulary list, transcribed from the textbook glossary
 const FULL_ES2 = [
-["把","bǎ","a measure word (for objects with handles or things to take hold of)","Function word","Other",14],["吧","ba","a particle","Function word","Other",3],["吧","ba","a particle","Function word","Other",8],["百","bǎi","hundred","Number/Measure word","Numbers & Quantities",7],["搬","bān","move","Verb","Other",15],
+["把","bǎ","a measure word (for objects with handles or things to take hold of)","Function word","Other",14],["吧","ba","a particle","Function word","Other",3],["百","bǎi","hundred","Number/Measure word","Numbers & Quantities",7],["搬","bān","move","Verb","Other",15],
 ["搬家","bānjiā","move (house)","Verb","Household Objects",15],["办","bàn","do; manage","Verb","Other",9],["办公","bàngōng","work (usually in an office)","Verb","Work & Money",9],["办公室","bàngōngshì","office","Noun","Work & Money",9],["包","bāo","bun; bag","Noun","Clothing & Appearance",11],
 ["包子","bāozi","steamed stuffed bun","Noun","Food & Drink",11],["比","bǐ","than","Function word","Other",7],["比如","bǐrú","for example; such as","Function word","Other",11],["比萨饼","bǐsàbǐng","pizza","Noun","Food & Drink",11],["币","bì","money; currency","Noun","Work & Money",12],
 ["边","biān","a suffix","Noun","Places",14],["别墅","biéshù","villa","Noun","Other",13],["冰","bīng","ice","Noun","Food & Drink",14],["冰箱","bīngxiāng","fridge","Noun","Household Objects",14],["饼","bǐng","pancake","Noun","Other",11],
