@@ -380,7 +380,10 @@ input::placeholder{ color:var(--text-muted); }
 .question-box.revealed.wrong .feedback{ color:#fff; }
 .q-tags{ position:absolute; top:12px; left:14px; display:flex; flex-wrap:wrap; gap:4px; max-width:75%; }
 .q-tags .badge{ font-size:10px; padding:3px 8px; }
-.q-main{ font-family:'Noto Sans SC',sans-serif; font-weight:700; font-size:56px; color:var(--text-primary); line-height:1; margin-bottom:10px; }
+.q-main{ font-weight:700; font-size:56px; color:var(--text-primary); line-height:1; margin-bottom:10px; }
+body.hanzi-font-serif .q-main{ font-family:'Noto Serif SC',serif; }
+body.hanzi-font-sans .q-main{ font-family:'Noto Sans SC',sans-serif; }
+body.hanzi-font-hand .q-main{ font-family:'Ma Shan Zheng',cursive; font-weight:400; }
 .feedback.revealed{
   display:flex;
   flex-direction:column;
@@ -508,6 +511,8 @@ input::placeholder{ color:var(--text-muted); }
   box-shadow:0 1px 2px rgba(0,0,0,.04);
 }
 button.settings-menu-item:hover{ background:var(--surface-1); }
+.settings-menu-item-stack{ flex-direction:column; align-items:stretch; gap:10px; }
+.settings-menu-item-stack .mode-switch{ margin-bottom:0; }
 .menu-chevron{ color:var(--text-muted); font-size:18px; line-height:1; }
 .toggle-switch{
   width:44px; height:26px; border-radius:20px;

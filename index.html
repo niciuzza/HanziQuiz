@@ -10,11 +10,11 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Noto+Sans+SC:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Noto+Sans+SC:wght@500;700&family=Noto+Serif+SC:wght@500;700&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=65">
+<link rel="stylesheet" href="style.css?v=66">
 </head>
 <body>
   <div class="app">
@@ -194,6 +194,14 @@
           <span>Hard mode (multi-meaning words)</span>
           <button class="toggle-switch" id="hardModeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
         </div>
+        <div class="settings-menu-item settings-menu-item-stack">
+          <span>Character font (quiz &amp; flashcards)</span>
+          <div class="mode-switch" id="hanziFontRow">
+            <button class="mode-switch-btn" data-font="serif">Serif</button>
+            <button class="mode-switch-btn" data-font="sans">Sans</button>
+            <button class="mode-switch-btn" data-font="hand">Handwriting</button>
+          </div>
+        </div>
       </div>
 
       <button class="app-version-footer" id="appVersionBtn"></button>
@@ -364,7 +372,7 @@
 
   </div>
 
-  <script src="data.js?v=65"></script>
-  <script src="script.js?v=65"></script>
+  <script src="data.js?v=66"></script>
+  <script src="script.js?v=66"></script>
 </body>
 </html>

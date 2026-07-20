@@ -4,6 +4,7 @@ const SESSION_KEY = 'hsk-vocab-session';
 const THEME_KEY = 'hsk-vocab-theme';
 const AUTOPLAY_SOUND_KEY = 'hsk-vocab-autoplay-sound';
 const HARD_MODE_KEY = 'hsk-vocab-hard-mode';
+const HANZI_FONT_KEY = 'hsk-vocab-hanzi-font';
 const SRS_KEY = 'hsk-vocab-srs';
 // build number = this script's own cache-busting "?v=" query param, so it's never a second
 // place that needs bumping — reading it back out just reflects whatever was already bumped
@@ -34,6 +35,7 @@ let progressTags = new Set(); // Settings' progress-list filter; empty means "al
 let darkMode = false;
 let autoPlaySound = true;
 let hardMode = false; // when on, a character with 2+ genuinely distinct senses (see clusterSenses)
+let hanziFont = 'serif';
                        // requires selecting all of them + Submit, instead of tap-one-to-answer
 let screen = 'home'; // 'home' | 'quiz' | 'results' | 'settings' | 'addWord'
 let screenBeforeSettings = 'home';
@@ -163,6 +165,25 @@ function toggleHardMode(){
   hardMode = !hardMode;
   try { localStorage.setItem(HARD_MODE_KEY, String(hardMode)); } catch (e) {}
   applyHardMode();
+}
+
+/* ---------- character font used for the big hanzi in quiz questions & flashcards ---------- */
+function loadHanziFont(){
+  const saved = localStorage.getItem(HANZI_FONT_KEY);
+  hanziFont = saved === 'sans' || saved === 'hand' ? saved : 'serif';
+  applyHanziFont();
+}
+function applyHanziFont(){
+  document.body.classList.remove('hanzi-font-serif', 'hanzi-font-sans', 'hanzi-font-hand');
+  document.body.classList.add(`hanzi-font-${hanziFont}`);
+  document.querySelectorAll('#hanziFontRow .mode-switch-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.font === hanziFont);
+  });
+}
+function setHanziFont(font){
+  hanziFont = font;
+  try { localStorage.setItem(HANZI_FONT_KEY, font); } catch (e) {}
+  applyHanziFont();
 }
 
 /* ---------- stats (per-word progress, keyed by character+meaning) ---------- */
@@ -1573,6 +1594,9 @@ document.getElementById('wordDetailBackBtn').onclick = () => showScreen('wordDec
 document.getElementById('darkModeToggle').onclick = toggleDarkMode;
 document.getElementById('autoPlaySoundToggle').onclick = toggleAutoPlaySound;
 document.getElementById('hardModeToggle').onclick = toggleHardMode;
+document.querySelectorAll('#hanziFontRow .mode-switch-btn').forEach((btn) => {
+  btn.onclick = () => setHanziFont(btn.dataset.font);
+});
 document.getElementById('appVersionBtn').textContent = `HanZi Quiz · Build ${APP_BUILD}`;
 document.getElementById('appVersionBtn').onclick = () => {
   alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-4 — official HSK 3.0 vocabulary lists\nES1 — Easy Steps to Chinese 1 (textbook)`);
@@ -1582,6 +1606,7 @@ document.getElementById('appVersionBtn').onclick = () => {
 loadTheme();
 loadAutoPlaySound();
 loadHardMode();
+loadHanziFont();
 loadStats();
 loadSrs();
 activeTags = new Set(); // no word list selected by default — the user picks explicitly
