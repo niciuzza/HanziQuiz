@@ -16,6 +16,8 @@
   --hsk3-text:#059669;
   --hsk4-bg:#fffbeb;
   --hsk4-text:#d97706;
+  --hsk5-bg:#fff1f2;
+  --hsk5-text:#e11d48;
   --success-bg:#ecfdf5;
   --success-text:#059669;
   --success-border:#059669;
@@ -51,6 +53,8 @@
     --hsk3-text:#6ee7b7;
     --hsk4-bg:#78350f;
     --hsk4-text:#fcd34d;
+    --hsk5-bg:#881337;
+    --hsk5-text:#fda4af;
     --success-bg:#064e3b;
     --success-text:#6ee7b7;
     --success-border:#6ee7b7;
@@ -84,6 +88,8 @@
   --hsk3-text:#059669;
   --hsk4-bg:#fffbeb;
   --hsk4-text:#d97706;
+  --hsk5-bg:#fff1f2;
+  --hsk5-text:#e11d48;
   --success-bg:#ecfdf5;
   --success-text:#059669;
   --success-border:#059669;
@@ -116,6 +122,8 @@
   --hsk3-text:#6ee7b7;
   --hsk4-bg:#78350f;
   --hsk4-text:#fcd34d;
+  --hsk5-bg:#881337;
+  --hsk5-text:#fda4af;
   --success-bg:#064e3b;
   --success-text:#6ee7b7;
   --success-border:#6ee7b7;
@@ -280,6 +288,7 @@ input::placeholder{ color:var(--text-muted); }
 .tag-filter-row button.active.hsk2{ background:var(--hsk2-bg); color:var(--hsk2-text); border-color:var(--hsk2-text); }
 .tag-filter-row button.active.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); border-color:var(--hsk3-text); }
 .tag-filter-row button.active.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); border-color:var(--hsk4-text); }
+.tag-filter-row button.active.hsk5{ background:var(--hsk5-bg); color:var(--hsk5-text); border-color:var(--hsk5-text); }
 .tag-filter-row button.active.es{ background:var(--success-bg); color:var(--success-text); border-color:var(--success-text); }
 .tag-filter-row button.active.custom-tag{
   background:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-bg-l));
@@ -625,6 +634,7 @@ button.settings-menu-item:hover{ background:var(--surface-1); }
 .badge.hsk2{ background:var(--hsk2-bg); color:var(--hsk2-text); }
 .badge.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); }
 .badge.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); }
+.badge.hsk5{ background:var(--hsk5-bg); color:var(--hsk5-text); }
 .badge.es{ background:var(--success-bg); color:var(--success-text); }
 .badge.other{ background:var(--surface-1); color:var(--text-secondary); border:1px solid var(--border); }
 .badge.custom-tag{

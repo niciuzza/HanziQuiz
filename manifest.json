@@ -1,7 +1,7 @@
 {
   "name": "HanZi Quiz",
   "short_name": "HanZi Quiz",
-  "description": "Guess the meaning, hear the pronunciation — HSK1-4 and Easy Steps to Chinese 1 vocabulary quiz and chapter-by-chapter flashcard review.",
+  "description": "Guess the meaning, hear the pronunciation — HSK1-5 and Easy Steps to Chinese 1 vocabulary quiz and chapter-by-chapter flashcard review.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
