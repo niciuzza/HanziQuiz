@@ -6,6 +6,8 @@ const AUTOPLAY_SOUND_KEY = 'hsk-vocab-autoplay-sound';
 const HARD_MODE_KEY = 'hsk-vocab-hard-mode';
 const HANZI_FONT_KEY = 'hsk-vocab-hanzi-font';
 const SRS_KEY = 'hsk-vocab-srs';
+const FLASHCARD_SESSION_KEY = 'hsk-vocab-flashcard-session';
+const LAST_STUDY_MODE_KEY = 'hsk-vocab-last-study-mode'; // 'quiz' or 'flashcards' — which resumable session to prefer on load if both exist
 // build number = this script's own cache-busting "?v=" query param, so it's never a second
 // place that needs bumping — reading it back out just reflects whatever was already bumped
 const APP_BUILD = (() => {
@@ -717,11 +719,45 @@ document.getElementById('homeModeLearningBtn').onclick = () => showScreen('learn
 document.getElementById('learningModeQuizBtn').onclick = () => showScreen('home');
 
 /* ---------- Learning Mode: flashcards ---------- */
+// unlike the quiz round (whose progress is derivable from statsMap + roundKeys alone),
+// flashcard position/reveal state has nowhere else to live, so it needs its own explicit
+// session snapshot to survive a reload — stores statKeys rather than full word objects so it
+// stays valid even if word data changes between saves
+function saveFlashcardSession(){
+  try {
+    localStorage.setItem(FLASHCARD_SESSION_KEY, JSON.stringify({
+      poolKeys: flashcardPool.map(w => statKey(w.c, w.m)),
+      index: flashcardIndex,
+      revealed: flashcardRevealed,
+      learningList,
+    }));
+  } catch (e) {}
+}
+function loadFlashcardSession(){
+  try {
+    const raw = localStorage.getItem(FLASHCARD_SESSION_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!Array.isArray(s.poolKeys) || s.poolKeys.length === 0) return false;
+    if (!(s.index < s.poolKeys.length)) return false; // already finished this session
+    const byKey = new Map(combinedPool().map(w => [statKey(w.c, w.m), w]));
+    const pool = s.poolKeys.map(k => byKey.get(k)).filter(Boolean);
+    if (pool.length === 0) return false;
+    flashcardPool = pool;
+    flashcardIndex = Math.min(s.index || 0, pool.length - 1);
+    flashcardRevealed = !!s.revealed;
+    if (s.learningList) learningList = s.learningList;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 function startFlashcards(pool = learningPool()){
   if (pool.length === 0) return;
   flashcardPool = pickRandom(pool, pool.length, null);
   flashcardIndex = 0;
   flashcardRevealed = false;
+  saveFlashcardSession();
   showScreen('flashcards');
 }
 function renderFlashcard(){
@@ -761,12 +797,14 @@ function renderFlashcard(){
 function revealFlashcard(){
   if (flashcardRevealed) return;
   flashcardRevealed = true;
+  saveFlashcardSession();
   renderFlashcard();
   if (autoPlaySound) speak(flashcardPool[flashcardIndex].c);
 }
 function nextFlashcard(){
   flashcardIndex++;
   flashcardRevealed = false;
+  saveFlashcardSession();
   renderFlashcard();
 }
 // a rating button both records the self-assessment (which reschedules the word's next
@@ -1674,6 +1712,10 @@ const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'setti
 function showScreen(name){
   SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
   screen = name;
+  // which of the two resumable sessions to prefer on the next load, if both are pending
+  if (name === 'quiz' || name === 'flashcards') {
+    try { localStorage.setItem(LAST_STUDY_MODE_KEY, name); } catch (e) {}
+  }
   if (name === 'home') { renderTopicFilter(); updateHomePoolCount(); }
   if (name === 'learningHome') renderLearningHome();
   if (name === 'flashcards') renderFlashcard();
@@ -1794,10 +1836,20 @@ loadSrs();
 activeTags = new Set(); // no word list selected by default — the user picks explicitly
 loadSession(); // may override score/total/streak/activeTags/roundSize/roundKeys with a resumed session
 loadWords();
-// resume straight into an unfinished round on reload instead of always landing on Home;
-// newQuestion()/showScreen already handle re-rolling an invalid round, jumping to Results
-// if it was already complete, or falling back to Home if the pool's too small now.
-showScreen(roundKeys ? 'quiz' : 'home');
+// resume straight into an unfinished round/flashcard session on reload instead of always
+// landing on Home; newQuestion()/showScreen already handle re-rolling an invalid quiz round,
+// jumping to Results if it was already complete, or falling back to Home if the pool's too
+// small now. If both a quiz round and a flashcard session are pending, prefer whichever one
+// was actually active most recently (see LAST_STUDY_MODE_KEY in showScreen).
+const flashcardResumed = loadFlashcardSession();
+const lastStudyMode = localStorage.getItem(LAST_STUDY_MODE_KEY);
+if (flashcardResumed && (lastStudyMode === 'flashcards' || !roundKeys)) {
+  showScreen('flashcards');
+} else if (roundKeys) {
+  showScreen('quiz');
+} else {
+  showScreen('home');
+}
 
 // offline support: cache name is tied to APP_BUILD (see sw.js), so bumping the usual ?v= is
 // all that's needed to invalidate stale cached assets
