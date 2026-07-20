@@ -1086,10 +1086,12 @@ function renderProgressFlashcard(){
     studiedWords.forEach(w => box.appendChild(buildFlashcardProgressRow(w, renderProgressFlashcard)));
   }
   document.getElementById('resetFlashcardProgressBtn').classList.toggle('hidden', studiedWords.length === 0);
+  // routes to Flashcard, not Quiz — flashcard is what actually reads/updates srsMap, so it's
+  // the mode that matches what this list is tracking (see SRS_LEVELS)
   const practiceBtn = document.getElementById('practiceFlashcardProgressBtn');
   practiceBtn.classList.toggle('hidden', studiedWords.length === 0);
-  practiceBtn.textContent = `▶ Practice these words (${studiedWords.length})`;
-  practiceBtn.onclick = () => startPracticeRound(studiedWords);
+  practiceBtn.textContent = `▶ Review these words (${studiedWords.length})`;
+  practiceBtn.onclick = () => startFlashcards(studiedWords);
 }
 function buildFlashcardProgressRow(w, onCleared){
   const badges = w.tags.map(badgeHTML).join(' ');
