@@ -17,7 +17,7 @@ const APP_BUILD = (() => {
     return m ? m[1] : '?';
   } catch (e) { return '?'; }
 })();
-const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, HSK5: FULL_HSK5, ES1: FULL_ES1 };
+const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, HSK5: FULL_HSK5, ES1: FULL_ES1, ES2: FULL_ES2 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
@@ -399,7 +399,7 @@ const TINT_VARS = {
   other: { bg: '--surface-1', solid: '--accent-solid' },
 };
 function primaryTag(tags){
-  const order = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1'];
+  const order = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1', 'ES2'];
   for (const t of order) if (tags.includes(t)) return t;
   return tags[0] || null;
 }
@@ -1014,7 +1014,7 @@ function renderProgress(){
 // falling back to `field` (wrong/dontknow/correct count) as a tiebreaker within the same list;
 // 'percent' sorts by accuracy ascending (worst first — the words most worth reviewing).
 let progressSortMode = 'list';
-const LIST_SORT_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1'];
+const LIST_SORT_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1', 'ES2'];
 function listSortIndex(tags){
   const idx = LIST_SORT_ORDER.indexOf(primaryTag(tags));
   return idx === -1 ? LIST_SORT_ORDER.length : idx;
@@ -1233,7 +1233,7 @@ function renderAddWordLevelOptions(){
   // hardcoded rather than derived from BUILTIN_LISTS since this offers every built-in list as
   // an Add Word destination regardless of whether the user has any words in it yet — add future
   // lists (e.g. ES2/ES3) here too when they're added to data.js
-  ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1'].forEach(t => {
+  ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1', 'ES2'].forEach(t => {
     appendTagRowBreak(row, t, prevTag);
     prevTag = t;
     const btn = document.createElement('button');
@@ -1811,7 +1811,7 @@ setupHanziFontMenu('qFontBtn', 'qFontMenu');
 setupHanziFontMenu('flashcardFontBtn', 'flashcardFontMenu');
 document.getElementById('appVersionBtn').textContent = `HanZi Quiz · Build ${APP_BUILD}`;
 document.getElementById('appVersionBtn').onclick = () => {
-  alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-5 — official HSK 3.0 vocabulary lists\nES1 — Easy Steps to Chinese 1 (textbook)`);
+  alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-5 — official HSK 3.0 vocabulary lists\nES1/ES2 — Easy Steps to Chinese 1/2 (textbooks)`);
 };
 document.getElementById('checkUpdateBtn').onclick = async () => {
   if (!('serviceWorker' in navigator)) { alert('Updates aren\'t supported in this browser.'); return; }
