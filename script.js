@@ -937,7 +937,7 @@ function renderProgress(){
   document.getElementById('progressWrongCount').textContent = pool.filter(w => w.wrong > 0).length;
   document.getElementById('progressDontKnowCount').textContent = pool.filter(w => w.dontknow > 0).length;
   document.getElementById('progressMasteredCount').textContent = pool.filter(w => w.correct > 0).length;
-  document.getElementById('progressFlashcardCount').textContent = pool.filter(w => w.srs).length;
+  document.getElementById('progressFlashcardCount').textContent = flashcardStudiedPool().length;
   document.getElementById('resetProgressBtn').textContent = progressTags.size === 0
     ? 'Reset all progress'
     : `Reset progress for ${[...progressTags].join(', ')}`;
@@ -1048,12 +1048,36 @@ function renderProgressMastered(){
   practiceBtn.onclick = () => startPracticeRound(masteredWords);
 }
 
+// this list filters by memory level (New/Learning/.../Expert) instead of by word list — the
+// other 3 lists' progressTags filter doesn't apply here
+let progressSrsLevels = new Set();
+function renderSrsLevelFilterRow(containerId, onChange){
+  const row = document.getElementById(containerId);
+  row.innerHTML = '';
+  SRS_LEVELS.forEach((lvl, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'srs-filter-btn';
+    btn.innerHTML = `${lvl.icon}<span>${lvl.label}</span>`;
+    const refresh = () => { btn.classList.toggle('active', progressSrsLevels.has(i)); };
+    btn.onclick = () => {
+      if (progressSrsLevels.has(i)) progressSrsLevels.delete(i); else progressSrsLevels.add(i);
+      refresh();
+      onChange();
+    };
+    refresh();
+    row.appendChild(btn);
+  });
+}
+function flashcardStudiedPool(){
+  return combinedPool().filter(w => w.srs && (progressSrsLevels.size === 0 || progressSrsLevels.has(w.srs.intervalIndex)));
+}
+
 // unlike the other 3 lists (which sort "worst first" by a wrong/dontknow/correct count),
 // least-confident-first here means lowest SRS interval index — no percent-accuracy concept
 // applies to flashcard self-ratings
 function renderProgressFlashcard(){
-  renderProgressFilterRow('flashcardFilterRow', renderProgressFlashcard);
-  const studiedWords = progressPool().filter(w => w.srs).sort((a, b) => a.srs.intervalIndex - b.srs.intervalIndex);
+  renderSrsLevelFilterRow('flashcardFilterRow', renderProgressFlashcard);
+  const studiedWords = flashcardStudiedPool().sort((a, b) => a.srs.intervalIndex - b.srs.intervalIndex);
   const box = document.getElementById('flashcardProgressList');
   box.innerHTML = '';
   if (studiedWords.length === 0) {
@@ -1101,10 +1125,10 @@ document.getElementById('resetWrongBtn').onclick = () => resetProgressField('wro
 document.getElementById('resetDontKnowBtn').onclick = () => resetProgressField('dontknow', "marked I don't know", renderProgressDontKnow);
 document.getElementById('resetMasteredBtn').onclick = () => resetProgressField('correct', "mastered", renderProgressMastered);
 document.getElementById('resetFlashcardProgressBtn').onclick = () => {
-  const scopeLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
+  const scopeLabel = progressSrsLevels.size === 0 ? 'all levels' : [...progressSrsLevels].map(i => SRS_LEVELS[i].label).join(', ');
   const ok = confirm(`Clear flashcard study progress for ${scopeLabel}? This can't be undone.`);
   if (!ok) return;
-  progressPool().forEach(w => clearWordSrs(w.c, w.m));
+  flashcardStudiedPool().forEach(w => clearWordSrs(w.c, w.m));
   renderProgressFlashcard();
 };
 
