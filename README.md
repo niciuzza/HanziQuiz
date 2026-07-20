@@ -1,8 +1,8 @@
 # Chinese Vocab Builder
 
 A small self-hosted flashcard/quiz app for learning Mandarin vocabulary, built around
-six built-in word lists (HSK1, HSK2, HSK3, HSK4, HSK5, and a textbook list you can label however you
-like, e.g. `ES1`) with support for adding your own words and tags. Built-in lists are
+seven built-in word lists (HSK1, HSK2, HSK3, HSK4, HSK5, and textbook lists you can label however you
+like, e.g. `ES1`/`ES2`) with support for adding your own words and tags. Built-in lists are
 available directly on the Quiz page — no import step needed.
 
 Pure HTML/CSS/JS — no build step, no framework, no backend. Words are saved in the
@@ -12,7 +12,7 @@ browser's `localStorage`, so progress is per-browser (clearing site data will re
 
 - `index.html` — page structure
 - `style.css` — styling (light/dark mode via `prefers-color-scheme`)
-- `data.js` — the HSK1, HSK2, HSK3, HSK4, HSK5, and ES1 word list data
+- `data.js` — the HSK1, HSK2, HSK3, HSK4, HSK5, ES1, and ES2 word list data
 - `script.js` — app logic: tagging, spaced-repetition-weighted quiz, pinyin syllable
   splitting, text-to-speech via the browser's built-in `SpeechSynthesis` API
 
