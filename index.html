@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=67">
+<link rel="stylesheet" href="style.css?v=68">
 </head>
 <body>
   <div class="app">
@@ -267,6 +267,11 @@
         <div class="detail-meta-row"><span class="detail-meta-label">Wrong</span><span class="detail-meta-value" id="detailWrong">0</span></div>
         <div class="detail-meta-row"><span class="detail-meta-label">Accuracy</span><span class="detail-meta-value" id="detailAccuracy">No attempts yet</span></div>
       </div>
+
+      <div class="detail-meta-list">
+        <div class="detail-meta-row"><span class="detail-meta-label">Flashcard memory</span><span class="detail-meta-value" id="detailSrsLevel">Not studied yet</span></div>
+        <div class="detail-meta-row hidden" id="detailSrsDueRow"><span class="detail-meta-label">Next review</span><span class="detail-meta-value" id="detailSrsDue">—</span></div>
+      </div>
     </section>
 
     <!-- ============ MY PROGRESS (hub) ============ -->
@@ -289,6 +294,10 @@
         <button class="settings-menu-item" id="openProgressMasteredBtn">
           <span>Mastered words</span>
           <span class="menu-item-end"><span class="menu-count" id="progressMasteredCount">0</span><span class="menu-chevron">›</span></span>
+        </button>
+        <button class="settings-menu-item" id="openProgressFlashcardBtn">
+          <span>Studied via Flashcard</span>
+          <span class="menu-item-end"><span class="menu-count" id="progressFlashcardCount">0</span><span class="menu-chevron">›</span></span>
         </button>
       </div>
     </section>
@@ -330,6 +339,18 @@
       <div class="tag-filter-row" id="masteredSortRow"></div>
       <button id="practiceMasteredBtn" class="primary-btn practice-btn hidden">▶ Practice these words</button>
       <div class="word-list full-list" id="masteredList"></div>
+    </section>
+
+    <!-- ============ PROGRESS: STUDIED VIA FLASHCARD ============ -->
+    <section id="progressFlashcardScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="progressFlashcardBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Studied via Flashcard</span>
+        <button id="resetFlashcardProgressBtn" class="reset-inline-btn hidden">Reset</button>
+      </div>
+      <div class="tag-filter-row" id="flashcardFilterRow"></div>
+      <button id="practiceFlashcardProgressBtn" class="primary-btn practice-btn hidden">▶ Practice these words</button>
+      <div class="word-list full-list" id="flashcardProgressList"></div>
     </section>
 
     <!-- ============ ADD WORD ============ -->
@@ -376,7 +397,7 @@
 
   </div>
 
-  <script src="data.js?v=67"></script>
-  <script src="script.js?v=67"></script>
+  <script src="data.js?v=68"></script>
+  <script src="script.js?v=68"></script>
 </body>
 </html>

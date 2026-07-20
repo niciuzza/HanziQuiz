@@ -52,6 +52,22 @@ let flashcardRevealed = false;
 // starts at "1 day" and stretches out from there as a word keeps being recalled instantly).
 const SRS_INTERVALS_DAYS = [1, 2, 4, 7, 15, 31];
 let srsMap = {}; // key (c::m) -> { intervalIndex, nextReviewAt, lastRatedAt }, set only by flashcard self-ratings
+// one label+icon per SRS_INTERVALS_DAYS step, for showing "how well remembered" in plain terms
+// instead of raw interval numbers — a growth theme (seedling -> potted plant -> grass -> flower
+// -> tree -> forest), icons are Material Symbols, inlined with fill="currentColor"
+const SRS_LEVELS = [
+  { label: 'New', icon: '<svg viewBox="0 -960 960 960" fill="currentColor"><path d="M440-120v-319q-64 0-123-24.5T213-533q-45-45-69-104t-24-123v-80h80q63 0 122 24.5T426-746q31 31 51.5 68t31.5 79q5-7 11-13.5t13-13.5q45-45 104-69.5T760-720h80v80q0 64-24.5 123T746-413q-45 45-103.5 69T520-320v200h-80Zm0-400q0-48-18.5-91.5T369-689q-34-34-77.5-52.5T200-760q0 48 18 92t52 78q34 34 78 52t92 18Zm80 120q48 0 91.5-18t77.5-52q34-34 52.5-78t18.5-92q-48 0-92 18.5T590-569q-34 34-52 77.5T520-400Zm0 0Zm-80-120Z"/></svg>' },
+  { label: 'Learning', icon: '<svg viewBox="0 -960 960 960" fill="currentColor"><path d="M342-160h276l40-160H302l40 160Zm0 80q-28 0-49-17t-28-44l-45-179h520l-45 179q-7 27-28 44t-49 17H342ZM200-400h560v-80H200v80Zm280-240q0-100 70-170t170-70q0 90-57 156t-143 80v84h320v160q0 33-23.5 56.5T760-320H200q-33 0-56.5-23.5T120-400v-160h320v-84q-86-14-143-80t-57-156q100 0 170 70t70 170Z"/></svg>' },
+  { label: 'Familiar', icon: '<svg viewBox="0 -960 960 960" fill="currentColor"><path d="M80-160v-80h230q-22-85-83.5-146.5T80-470q20-5 39.5-7.5T160-480q134 0 227 93t93 227H80Zm480 0q0-42-9-83.5T525-323q42-71 114.5-114T800-480q21 0 40.5 2.5T880-470q-85 22-146 83.5T650-240h230v80H560Zm-80-239q0-65 24-122t66-100.5q42-43.5 98.5-69.5T789-719q-56 35-98 86t-65 114q-44 21-80.5 51.5T480-399Zm-73-75q-12-9-24-17t-25-16q0-6 1-12.5t1-12.5q0-76-24-144t-68-124q66 27 114.5 77.5T457-606q-18 30-31 63.5T407-474Z"/></svg>' },
+  { label: 'Known', icon: '<svg viewBox="0 -960 960 960" fill="currentColor"><path d="M480-600q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm-70.5 218.5Q378-403 364-438q-5 0-9 .5t-9 .5q-52 0-89-37t-37-89q0-21 7-40.5t21-36.5q-13-17-20-36.5t-7-40.5q0-52 36.5-89t88.5-37q5 0 9 .5t9 .5q14-35 45.5-56.5T480-920q39 0 70.5 21.5T596-842q5 0 9-.5t9-.5q52 0 88.5 37t36.5 89q0 21-6.5 40.5T712-640q13 17 20 36.5t7 40.5q0 52-36.5 89T614-437q-5 0-9-.5t-9-.5q-14 35-45.5 56.5T480-360q-39 0-70.5-21.5ZM480-80q0-74 28.5-139.5T586-334q49-49 114.5-77.5T840-440q0 74-28.5 139.5T734-186q-49 49-114.5 77.5T480-80Zm98-98q57-21 100-64t64-100q-57 21-100 64t-64 100Zm-98 98q0-74-28.5-139.5T374-334q-49-49-114.5-77.5T120-440q0 74 28.5 139.5T226-186q49 49 114.5 77.5T480-80Zm-98-98q-57-21-100-64t-64-100q57 21 100 64t64 100Zm196 0Zm-196 0Zm232-339q19 0 32.5-13.5T660-563q0-14-7.5-24.5T633-604l-35-17q-2 11-6 21.5t-9 19.5q-5 9-12 17t-15 15l32 23q5 4 11.5 6t14.5 2Zm-16-142 35-17q12-6 19-17t7-24q0-19-13-32.5T614-763q-8 0-14 2t-12 6l-33 23q8 7 15.5 15t12.5 17q5 9 9 19.5t6 21.5Zm-159-93q10-4 20-6t21-2q11 0 21 2t20 6l5-44q2-18-12.5-31T480-840q-19 0-33.5 13T434-796l5 44Zm41 312q19 0 33.5-13t12.5-31l-5-44q-10 4-20 6t-21 2q-11 0-21-2t-20-6l-5 44q-2 18 12.5 31t33.5 13ZM362-659q2-11 6-21.5t9-19.5q5-9 12-17t15-15l-32-23q-5-4-11.5-6t-14.5-2q-19 0-32.5 13.5T300-717q0 13 7.5 24t19.5 17l35 17Zm-16 141q8 0 14-1.5t12-6.5l33-22q-8-7-15.5-15T377-580q-5-9-9-19.5t-6-21.5l-35 17q-12 6-19 17t-7 24q1 19 13.5 32t31.5 13Zm237-62Zm0-120Zm-103-60Zm0 240ZM377-700Zm0 120Z"/></svg>' },
+  { label: 'Strong', icon: '<svg viewBox="0 -960 960 960" fill="currentColor"><path d="M200-80v-80h240v-160h-80q-83 0-141.5-58.5T160-520q0-60 33-110.5t89-73.5q9-75 65.5-125.5T480-880q76 0 132.5 50.5T678-704q56 23 89 73.5T800-520q0 83-58.5 141.5T600-320h-80v160h240v80H200Zm160-320h240q50 0 85-35t35-85q0-36-20.5-66T646-630l-42-18-6-46q-6-45-39.5-75.5T480-800q-45 0-78.5 30.5T362-694l-6 46-42 18q-33 14-53.5 44T240-520q0 50 35 85t85 35Zm120-200Z"/></svg>' },
+  { label: 'Expert', icon: '<svg viewBox="0 -960 960 960" fill="currentColor"><path d="M280-80v-160H0l154-240H80l280-400 120 172 120-172 280 400h-74l154 240H680v160H520v-160h-80v160H280Zm389-240h145L659-560h67L600-740l-71 101 111 159h-74l103 160Zm-523 0h428L419-560h67L360-740 234-560h67L146-320Zm0 0h155-67 252-67 155-428Zm523 0H566h74-111 197-67 155-145Zm-149 80h160-160Zm201 0Z"/></svg>' },
+];
+function srsLevel(intervalIndex){ return SRS_LEVELS[intervalIndex] || SRS_LEVELS[0]; }
+function srsBadgeHTML(intervalIndex){
+  const lvl = srsLevel(intervalIndex);
+  return `<span class="srs-badge">${lvl.icon}<span class="srs-badge-label">${lvl.label}</span></span>`;
+}
 
 // topic/POS taxonomy for distractor grouping — a word's tags (HSK1/ES1/custom list)
 // are about which *list* it's in; topic/pos are orthogonal to that, and optional.
@@ -231,6 +247,12 @@ function saveSrs(){
   try { localStorage.setItem(SRS_KEY, JSON.stringify(srsMap)); } catch (e) {}
 }
 function getSrs(c, m){ return srsMap[statKey(c, m)] || null; }
+function clearWordSrs(c, m){
+  const k = statKey(c, m);
+  if (!srsMap[k]) return;
+  delete srsMap[k];
+  saveSrs();
+}
 // a word with no rating history yet is always due — it hasn't been reviewed, so there's nothing
 // to wait out
 function isDue(w){
@@ -295,7 +317,7 @@ function combinedPool(){
   });
   return [...map.values()].map(w => {
     const s = getStats(w.c, w.m);
-    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, chapters: w.chapters, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow };
+    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, chapters: w.chapters, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow, srs: getSrs(w.c, w.m) };
   });
 }
 
@@ -915,6 +937,7 @@ function renderProgress(){
   document.getElementById('progressWrongCount').textContent = pool.filter(w => w.wrong > 0).length;
   document.getElementById('progressDontKnowCount').textContent = pool.filter(w => w.dontknow > 0).length;
   document.getElementById('progressMasteredCount').textContent = pool.filter(w => w.correct > 0).length;
+  document.getElementById('progressFlashcardCount').textContent = pool.filter(w => w.srs).length;
   document.getElementById('resetProgressBtn').textContent = progressTags.size === 0
     ? 'Reset all progress'
     : `Reset progress for ${[...progressTags].join(', ')}`;
@@ -1025,6 +1048,46 @@ function renderProgressMastered(){
   practiceBtn.onclick = () => startPracticeRound(masteredWords);
 }
 
+// unlike the other 3 lists (which sort "worst first" by a wrong/dontknow/correct count),
+// least-confident-first here means lowest SRS interval index — no percent-accuracy concept
+// applies to flashcard self-ratings
+function renderProgressFlashcard(){
+  renderProgressFilterRow('flashcardFilterRow', renderProgressFlashcard);
+  const studiedWords = progressPool().filter(w => w.srs).sort((a, b) => a.srs.intervalIndex - b.srs.intervalIndex);
+  const box = document.getElementById('flashcardProgressList');
+  box.innerHTML = '';
+  if (studiedWords.length === 0) {
+    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words studied in Flashcard mode yet.</div>';
+  } else {
+    studiedWords.forEach(w => box.appendChild(buildFlashcardProgressRow(w, renderProgressFlashcard)));
+  }
+  document.getElementById('resetFlashcardProgressBtn').classList.toggle('hidden', studiedWords.length === 0);
+  const practiceBtn = document.getElementById('practiceFlashcardProgressBtn');
+  practiceBtn.classList.toggle('hidden', studiedWords.length === 0);
+  practiceBtn.textContent = `▶ Practice these words (${studiedWords.length})`;
+  practiceBtn.onclick = () => startPracticeRound(studiedWords);
+}
+function buildFlashcardProgressRow(w, onCleared){
+  const badges = w.tags.map(badgeHTML).join(' ');
+  const row = document.createElement('div');
+  row.className = 'word-row';
+  row.innerHTML = `
+    <span class="char">${w.c}</span>
+    <span class="pinyin">${spacedPinyin(w.p)}</span>
+    <span class="meaning">${w.m}</span>
+    <span class="row-meta">
+      <span class="tags">${badges}</span>
+      ${srsBadgeHTML(w.srs.intervalIndex)}
+    </span>
+    <button class="del-btn" aria-label="Clear">✕</button>
+  `;
+  row.querySelector('.del-btn').onclick = () => {
+    clearWordSrs(w.c, w.m);
+    if (onCleared) onCleared();
+  };
+  return row;
+}
+
 // clears just one stat field across the filtered pool, leaving the other fields untouched —
 // unlike "Reset all progress" on the hub, which wipes every field for those words
 function resetProgressField(field, label, onDone){
@@ -1037,6 +1100,13 @@ function resetProgressField(field, label, onDone){
 document.getElementById('resetWrongBtn').onclick = () => resetProgressField('wrong', "gotten wrong", renderProgressWrong);
 document.getElementById('resetDontKnowBtn').onclick = () => resetProgressField('dontknow', "marked I don't know", renderProgressDontKnow);
 document.getElementById('resetMasteredBtn').onclick = () => resetProgressField('correct', "mastered", renderProgressMastered);
+document.getElementById('resetFlashcardProgressBtn').onclick = () => {
+  const scopeLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
+  const ok = confirm(`Clear flashcard study progress for ${scopeLabel}? This can't be undone.`);
+  if (!ok) return;
+  progressPool().forEach(w => clearWordSrs(w.c, w.m));
+  renderProgressFlashcard();
+};
 
 document.getElementById('resetProgressBtn').onclick = () => {
   const scopeLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
@@ -1525,7 +1595,7 @@ document.getElementById('startBtn').onclick = () => {
 document.getElementById('resumeBtn').onclick = () => showScreen('quiz');
 
 /* ---------- navigation ---------- */
-const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'addWord', 'wordDetail'];
+const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'progressFlashcard', 'addWord', 'wordDetail'];
 function showScreen(name){
   SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
   screen = name;
@@ -1539,6 +1609,7 @@ function showScreen(name){
   if (name === 'progressWrong') renderProgressWrong();
   if (name === 'progressDontKnow') renderProgressDontKnow();
   if (name === 'progressMastered') renderProgressMastered();
+  if (name === 'progressFlashcard') renderProgressFlashcard();
   if (name === 'addWord') { renderAddWordLevelOptions(); renderAddWordTopicOptions(); renderAddWordPosOptions(); }
   if (name === 'wordDetail') renderWordDetail();
 }
@@ -1568,6 +1639,24 @@ function renderWordDetail(){
   document.getElementById('detailCorrect').textContent = s.correct;
   document.getElementById('detailWrong').textContent = s.wrong;
   document.getElementById('detailAccuracy').textContent = acc !== null ? acc + '%' : 'No attempts yet';
+
+  const srs = getSrs(w.c, w.m);
+  const srsDueRow = document.getElementById('detailSrsDueRow');
+  if (srs) {
+    document.getElementById('detailSrsLevel').innerHTML = srsBadgeHTML(srs.intervalIndex);
+    srsDueRow.classList.remove('hidden');
+    document.getElementById('detailSrsDue').textContent = formatSrsDue(srs.nextReviewAt);
+  } else {
+    document.getElementById('detailSrsLevel').textContent = 'Not studied yet';
+    srsDueRow.classList.add('hidden');
+  }
+}
+// "In 3 days (Jul 25)", or "Due now" once nextReviewAt has passed
+function formatSrsDue(ts){
+  const days = Math.ceil((ts - Date.now()) / 86400000);
+  if (days <= 0) return 'Due now';
+  const dateStr = new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `In ${days} day${days === 1 ? '' : 's'} (${dateStr})`;
 }
 
 document.getElementById('homeSettingsBtn').onclick = () => { screenBeforeSettings = 'home'; showScreen('settings'); };
@@ -1588,6 +1677,8 @@ document.getElementById('openProgressDontKnowBtn').onclick = () => showScreen('p
 document.getElementById('progressDontKnowBackBtn').onclick = () => showScreen('myProgress');
 document.getElementById('openProgressMasteredBtn').onclick = () => showScreen('progressMastered');
 document.getElementById('progressMasteredBackBtn').onclick = () => showScreen('myProgress');
+document.getElementById('openProgressFlashcardBtn').onclick = () => showScreen('progressFlashcard');
+document.getElementById('progressFlashcardBackBtn').onclick = () => showScreen('myProgress');
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDetailBackBtn').onclick = () => showScreen('wordDecks');
