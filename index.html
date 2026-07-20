@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=67">
+<link rel="stylesheet" href="style.css?v=68">
 </head>
 <body>
   <div class="app">
@@ -99,7 +99,17 @@
 
       <div class="question-box detail-card flashcard-card" id="flashcardCard">
         <div class="q-tags" id="flashcardTags"></div>
-        <button class="detail-speak-btn" id="flashcardSpeakBtn" aria-label="play audio">🔊</button>
+        <div class="card-actions-top">
+          <div class="hanzi-font-picker">
+            <button class="hanzi-font-trigger" id="flashcardFontBtn" aria-label="Change character font">我</button>
+            <div class="hanzi-font-menu hidden" id="flashcardFontMenu">
+              <button class="hanzi-font-option font-serif" data-font="serif">我</button>
+              <button class="hanzi-font-option font-sans" data-font="sans">我</button>
+              <button class="hanzi-font-option font-hand" data-font="hand">我</button>
+            </div>
+          </div>
+          <button class="detail-speak-btn" id="flashcardSpeakBtn" aria-label="play audio">🔊</button>
+        </div>
         <div class="q-main" id="flashcardChar">-</div>
         <div id="flashcardRevealInfo" class="hidden">
           <p class="detail-pinyin" id="flashcardPinyin"></p>
@@ -140,6 +150,16 @@
 
       <div class="question-box" id="questionBox">
         <div class="q-tags" id="qTags"></div>
+        <div class="card-actions-top">
+          <div class="hanzi-font-picker">
+            <button class="hanzi-font-trigger" id="qFontBtn" aria-label="Change character font">我</button>
+            <div class="hanzi-font-menu hidden" id="qFontMenu">
+              <button class="hanzi-font-option font-serif" data-font="serif">我</button>
+              <button class="hanzi-font-option font-sans" data-font="sans">我</button>
+              <button class="hanzi-font-option font-hand" data-font="hand">我</button>
+            </div>
+          </div>
+        </div>
         <div class="q-main" id="qMain">-</div>
         <p class="hint-text hidden" id="hintText"></p>
         <p class="multi-select-hint hidden" id="multiSelectHint"></p>
@@ -376,7 +396,7 @@
 
   </div>
 
-  <script src="data.js?v=67"></script>
-  <script src="script.js?v=67"></script>
+  <script src="data.js?v=68"></script>
+  <script src="script.js?v=68"></script>
 </body>
 </html>
