@@ -749,6 +749,10 @@ function renderFlashcard(){
   document.getElementById('flashcardPinyin').textContent = spacedPinyin(w.p);
   document.getElementById('flashcardMeaning').textContent = w.m;
   document.getElementById('flashcardSpeakBtn').onclick = (e) => { e.stopPropagation(); speak(w.c); };
+  const disambigEl = document.getElementById('flashcardDisambig');
+  const example = findDisambiguationExample(w);
+  disambigEl.classList.toggle('hidden', !example);
+  if (example) disambigEl.innerHTML = `as in <b>${example.c}</b>`;
   document.getElementById('flashcardRevealInfo').classList.toggle('hidden', !flashcardRevealed);
   hint.classList.toggle('hidden', flashcardRevealed);
   rateRow.classList.toggle('hidden', !flashcardRevealed);
@@ -1315,6 +1319,29 @@ function clusterSenses(entries){
   return clusters;
 }
 const HSK_LEVEL_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4'];
+
+// for a genuinely polyphonic single character (per clusterSenses, same definition hard mode
+// uses), find a compound word elsewhere in the pool that uses this exact reading, so a
+// flashcard for e.g. 乐/yuè "music" can show "as in 音乐" instead of looking like an unexplained
+// duplicate of the 乐/lè "happy" card. spacedPinyin already splits a compound's merged pinyin
+// into one syllable per character (see README's pinyin splitter notes), which is what lets this
+// line the found word's syllable up against this specific reading.
+function findDisambiguationExample(w){
+  const chars = [...w.c];
+  if (chars.length !== 1) return null;
+  const siblings = combinedPool().filter(x => x.c === w.c);
+  if (clusterSenses(siblings).length < 2) return null;
+  const candidates = combinedPool().filter(x => x.c.length > 1 && x.c.includes(w.c));
+  for (const cand of candidates) {
+    const candChars = [...cand.c];
+    const idx = candChars.indexOf(w.c);
+    const syllables = spacedPinyin(cand.p).split(' ');
+    if (idx !== -1 && syllables[idx] && syllables[idx].toLowerCase() === w.p.toLowerCase()) {
+      return cand;
+    }
+  }
+  return null;
+}
 
 // hard mode looks for a character's other senses beyond just the current round's pool: pick
 // HSK1..the highest HSK level currently selected on Home, cumulatively, regardless of which
