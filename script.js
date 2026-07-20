@@ -192,7 +192,7 @@ function loadHanziFont(){
 function applyHanziFont(){
   document.body.classList.remove('hanzi-font-serif', 'hanzi-font-sans', 'hanzi-font-hand');
   document.body.classList.add(`hanzi-font-${hanziFont}`);
-  document.querySelectorAll('#hanziFontRow .mode-switch-btn').forEach((btn) => {
+  document.querySelectorAll('[data-font]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.font === hanziFont);
   });
 }
@@ -200,6 +200,28 @@ function setHanziFont(font){
   hanziFont = font;
   try { localStorage.setItem(HANZI_FONT_KEY, font); } catch (e) {}
   applyHanziFont();
+}
+// quick font-preview popover on the quiz card / flashcard — picking an option here changes the
+// same font used everywhere (Settings just controls the initial default)
+function setupHanziFontMenu(triggerId, menuId){
+  const trigger = document.getElementById(triggerId);
+  const menu = document.getElementById(menuId);
+  trigger.onclick = (e) => {
+    e.stopPropagation();
+    menu.classList.toggle('hidden');
+  };
+  menu.querySelectorAll('[data-font]').forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      setHanziFont(btn.dataset.font);
+      menu.classList.add('hidden');
+    };
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== trigger) {
+      menu.classList.add('hidden');
+    }
+  });
 }
 
 /* ---------- stats (per-word progress, keyed by character+meaning) ---------- */
@@ -1714,6 +1736,8 @@ document.getElementById('hardModeToggle').onclick = toggleHardMode;
 document.querySelectorAll('#hanziFontRow .mode-switch-btn').forEach((btn) => {
   btn.onclick = () => setHanziFont(btn.dataset.font);
 });
+setupHanziFontMenu('qFontBtn', 'qFontMenu');
+setupHanziFontMenu('flashcardFontBtn', 'flashcardFontMenu');
 document.getElementById('appVersionBtn').textContent = `HanZi Quiz · Build ${APP_BUILD}`;
 document.getElementById('appVersionBtn').onclick = () => {
   alert(`HanZi Quiz\nBuild ${APP_BUILD}\n\nWord lists:\nHSK1-4 — official HSK 3.0 vocabulary lists\nES1 — Easy Steps to Chinese 1 (textbook)`);

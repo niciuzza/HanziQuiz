@@ -655,6 +655,37 @@ button.settings-menu-item:hover{ background:var(--surface-1); }
   justify-content:center;
   font-size:16px;
 }
+.card-actions-top{ position:absolute; top:12px; right:14px; display:flex; align-items:center; gap:8px; }
+.card-actions-top .detail-speak-btn{ position:static; }
+
+/* ---------- quick character-font picker (quiz card + flashcard) ---------- */
+.hanzi-font-picker{ position:relative; }
+.hanzi-font-trigger{
+  width:32px; height:32px; border-radius:50%;
+  background:var(--surface-1); border:none; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; font-weight:700; line-height:1;
+}
+body.hanzi-font-serif .hanzi-font-trigger{ font-family:'Noto Serif SC',serif; }
+body.hanzi-font-sans .hanzi-font-trigger{ font-family:'Noto Sans SC',sans-serif; }
+body.hanzi-font-hand .hanzi-font-trigger{ font-family:'Ma Shan Zheng',cursive; font-weight:400; }
+.hanzi-font-menu{
+  position:absolute; top:40px; right:0; z-index:5;
+  display:flex; gap:6px; padding:6px;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-lg);
+  box-shadow:0 4px 12px rgba(0,0,0,.15);
+}
+.hanzi-font-option{
+  width:36px; height:36px; border-radius:10px;
+  background:transparent; border:1px solid transparent;
+  font-size:17px; font-weight:700; line-height:1; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text-secondary);
+}
+.hanzi-font-option.font-serif{ font-family:'Noto Serif SC',serif; }
+.hanzi-font-option.font-sans{ font-family:'Noto Sans SC',sans-serif; }
+.hanzi-font-option.font-hand{ font-family:'Ma Shan Zheng',cursive; font-weight:400; }
+.hanzi-font-option.active{ background:var(--accent-bg); color:var(--accent-text); border-color:var(--accent-text); }
 .detail-pinyin{ font-size:19px; font-weight:600; color:var(--text-secondary); margin:0 0 4px; }
 .detail-meaning{ font-size:20px; font-weight:600; color:var(--text-primary); margin:0; }
 .detail-meta-list{
