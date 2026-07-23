@@ -30,6 +30,7 @@ let listFilterTags = new Set();
 let listFilterTopics = new Set(); // Word Decks' own topic filter — independent of Home's activeTopics
 let overlapOnly = false;
 let chapterTaggedOnly = false;
+let wordListView = localStorage.getItem('hsk-vocab-word-list-view') || 'list'; // 'list' | 'grid'
 const UNSEEN_BONUS = 8; // weight multiplier for words never asked before (correct+wrong+dontknow === 0)
 let roundSize = 'all'; // 25|50|100|150|200|250|'all' — how many unique words make up the current round
 let roundKeys = null; // array of statKeys in the current round, or null if not yet rolled
@@ -972,15 +973,25 @@ function renderList(){
     ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'} across all lists`
     : `${filtered.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'} shown`;
   const box = document.getElementById('wordList');
+  const grid = document.getElementById('wordGrid');
+  box.classList.toggle('hidden', wordListView !== 'list');
+  grid.classList.toggle('hidden', wordListView !== 'grid');
+  document.getElementById('wordViewListBtn').classList.toggle('active', wordListView === 'list');
+  document.getElementById('wordViewGridBtn').classList.toggle('active', wordListView === 'grid');
+  const emptyState = !expanded && words.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Home screen.</div>'
+    : filtered.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words match your search/filter.</div>'
+    : null;
+  if (wordListView === 'grid') {
+    renderWordGrid(grid, filtered, emptyState);
+  } else {
+    renderWordListRows(box, filtered, emptyState);
+  }
+}
+function renderWordListRows(box, filtered, emptyState){
   box.innerHTML = '';
-  if (!expanded && words.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Home screen.</div>';
-    return;
-  }
-  if (filtered.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words match your search/filter.</div>';
-    return;
-  }
+  if (emptyState) { box.innerHTML = emptyState; return; }
   [...filtered].reverse().forEach(w => {
     const idx = words.findIndex(w2 => w2.c === w.c && w2.m === w.m);
     const badges = w.tags.map(badgeHTML).join(' ');
@@ -1014,6 +1025,24 @@ function renderList(){
       renderTagOptions();
       renderRoundSizeOptions();
     };
+  });
+}
+// dense vocabulary-table style view (like a printed HSK word list): pinyin over hanzi, no
+// meaning shown, sorted alphabetically by pinyin instead of insertion order — the point is
+// fast visual scanning, not browsing what's recently changed
+function renderWordGrid(grid, filtered, emptyState){
+  grid.innerHTML = '';
+  if (emptyState) { grid.innerHTML = emptyState; return; }
+  const sorted = [...filtered].sort((a, b) => detone(a.p).localeCompare(detone(b.p)));
+  sorted.forEach(w => {
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    cell.innerHTML = `
+      <span class="grid-cell-pinyin">${spacedPinyin(w.p)}</span>
+      <span class="grid-cell-char">${w.c}</span>
+    `;
+    cell.onclick = () => showWordDetail(w);
+    grid.appendChild(cell);
   });
 }
 
@@ -1886,6 +1915,13 @@ document.getElementById('quizExitBtn').onclick = () => showScreen('home');
 document.getElementById('settingsBackBtn').onclick = () => showScreen(screenBeforeSettings);
 document.getElementById('openWordDecksBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDecksBackBtn').onclick = () => showScreen('settings');
+function setWordListView(mode){
+  wordListView = mode;
+  localStorage.setItem('hsk-vocab-word-list-view', mode);
+  renderList();
+}
+document.getElementById('wordViewListBtn').onclick = () => setWordListView('list');
+document.getElementById('wordViewGridBtn').onclick = () => setWordListView('grid');
 document.getElementById('openChapterProgressBtn').onclick = () => showScreen('chapterProgress');
 document.getElementById('chapterProgressBackBtn').onclick = () => showScreen('settings');
 document.getElementById('homeProgressBtn').onclick = () => showScreen('myProgress');
