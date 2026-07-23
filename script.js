@@ -42,6 +42,7 @@ let hanziFont = 'serif';
                        // requires selecting all of them + Submit, instead of tap-one-to-answer
 let screen = 'home'; // 'home' | 'quiz' | 'results' | 'settings' | 'addWord'
 let screenBeforeSettings = 'home';
+let screenBeforeWordDetail = 'wordDecks';
 
 /* ---------- Learning Mode: chapter-by-chapter flashcard review (separate from the quiz) ---------- */
 let learningList = null; // built-in list tag currently picked, e.g. 'ES1', or null if none yet
@@ -1017,12 +1018,12 @@ function renderList(){
 }
 
 /* ---------- progress: words ever answered wrong / marked "I don't know" / mastered ---------- */
-function buildWordRow(w, clearField, onCleared){
+function buildWordRow(w, clearField, onCleared, fromScreen){
   const seen = w.correct + w.wrong;
   const acc = seen > 0 ? Math.round(100 * w.correct / seen) : null;
   const badges = w.tags.map(badgeHTML).join(' ');
   const row = document.createElement('div');
-  row.className = 'word-row';
+  row.className = fromScreen ? 'word-row clickable' : 'word-row';
   row.innerHTML = `
     <span class="char">${w.c}</span>
     <span class="pinyin">${spacedPinyin(w.p)}</span>
@@ -1037,6 +1038,12 @@ function buildWordRow(w, clearField, onCleared){
     row.querySelector('.del-btn').onclick = () => {
       clearWordStat(w.c, w.m, clearField);
       if (onCleared) onCleared();
+    };
+  }
+  if (fromScreen) {
+    row.onclick = (e) => {
+      if (e.target.closest('.del-btn')) return;
+      showWordDetail(w, fromScreen);
     };
   }
   return row;
@@ -1150,7 +1157,7 @@ function renderProgressWrong(){
   if (wrongWords.length === 0) {
     box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No wrong answers yet — nice!</div>';
   } else {
-    wrongWords.forEach(w => box.appendChild(buildWordRow(w, 'wrong', renderProgressWrong)));
+    wrongWords.forEach(w => box.appendChild(buildWordRow(w, 'wrong', renderProgressWrong, 'progressWrong')));
   }
   document.getElementById('resetWrongBtn').classList.toggle('hidden', wrongWords.length === 0);
   const practiceBtn = document.getElementById('practiceWrongBtn');
@@ -1168,7 +1175,7 @@ function renderProgressDontKnow(){
   if (dontKnowWords.length === 0) {
     box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">Nothing marked "I don\'t know" yet.</div>';
   } else {
-    dontKnowWords.forEach(w => box.appendChild(buildWordRow(w, 'dontknow', renderProgressDontKnow)));
+    dontKnowWords.forEach(w => box.appendChild(buildWordRow(w, 'dontknow', renderProgressDontKnow, 'progressDontKnow')));
   }
   document.getElementById('resetDontKnowBtn').classList.toggle('hidden', dontKnowWords.length === 0);
   const practiceBtn = document.getElementById('practiceDontKnowBtn');
@@ -1187,7 +1194,7 @@ function renderProgressMastered(){
     box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No mastered words yet.</div>';
   } else {
     // clearing a mastered word's "correct" count un-masters it, so it can appear in quizzes again
-    masteredWords.forEach(w => box.appendChild(buildWordRow(w, 'correct', renderProgressMastered)));
+    masteredWords.forEach(w => box.appendChild(buildWordRow(w, 'correct', renderProgressMastered, 'progressMastered')));
   }
   document.getElementById('resetMasteredBtn').classList.toggle('hidden', masteredWords.length === 0);
   const practiceBtn = document.getElementById('practiceMasteredBtn');
@@ -1250,7 +1257,7 @@ function renderProgressFlashcard(){
 function buildFlashcardProgressRow(w, onCleared){
   const badges = w.tags.map(badgeHTML).join(' ');
   const row = document.createElement('div');
-  row.className = 'word-row';
+  row.className = 'word-row clickable';
   row.innerHTML = `
     <span class="char">${w.c}</span>
     <span class="pinyin">${spacedPinyin(w.p)}</span>
@@ -1264,6 +1271,10 @@ function buildFlashcardProgressRow(w, onCleared){
   row.querySelector('.del-btn').onclick = () => {
     clearWordSrs(w.c, w.m);
     if (onCleared) onCleared();
+  };
+  row.onclick = (e) => {
+    if (e.target.closest('.del-btn')) return;
+    showWordDetail(w, 'progressFlashcard');
   };
   return row;
 }
@@ -1823,8 +1834,9 @@ function showScreen(name){
   if (name === 'wordDetail') renderWordDetail();
 }
 
-function showWordDetail(w){
+function showWordDetail(w, fromScreen){
   detailWord = w;
+  screenBeforeWordDetail = fromScreen || 'wordDecks';
   showScreen('wordDetail');
 }
 function renderWordDetail(){
@@ -1892,7 +1904,7 @@ document.getElementById('openProgressFlashcardBtn').onclick = () => showScreen('
 document.getElementById('progressFlashcardBackBtn').onclick = () => showScreen('myProgress');
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
-document.getElementById('wordDetailBackBtn').onclick = () => showScreen('wordDecks');
+document.getElementById('wordDetailBackBtn').onclick = () => showScreen(screenBeforeWordDetail);
 document.getElementById('darkModeToggle').onclick = toggleDarkMode;
 document.getElementById('autoPlaySoundToggle').onclick = toggleAutoPlaySound;
 document.getElementById('hardModeToggle').onclick = toggleHardMode;
