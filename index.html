@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=82">
+<link rel="stylesheet" href="style.css?v=83">
 </head>
 <body>
   <div class="app">
@@ -128,6 +128,7 @@
       <div class="flashcard-done hidden" id="flashcardDone">
         <p id="flashcardDoneText"></p>
         <div class="results-actions">
+          <button id="flashcardMarkLearnedBtn" class="outline-btn hidden" style="margin-bottom:10px;"></button>
           <button id="flashcardRestartBtn" class="primary-btn">Review again</button>
           <button id="flashcardBackToPickerBtn" class="outline-btn">Back to Learning Mode</button>
         </div>
@@ -203,6 +204,10 @@
           <span>Word decks</span>
           <span class="menu-chevron">›</span>
         </button>
+        <button class="settings-menu-item" id="openChapterProgressBtn">
+          <span>Chapter progress</span>
+          <span class="menu-chevron">›</span>
+        </button>
         <div class="settings-menu-item">
           <span>Dark mode</span>
           <button class="toggle-switch" id="darkModeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
@@ -230,6 +235,16 @@
       </div>
 
       <button class="app-version-footer" id="appVersionBtn"></button>
+    </section>
+
+    <!-- ============ CHAPTER PROGRESS ============ -->
+    <section id="chapterProgressScreen" class="hidden">
+      <div class="screen-header-back">
+        <button class="icon-btn" id="chapterProgressBackBtn" aria-label="Back">←</button>
+        <span class="screen-title">Chapter progress</span>
+      </div>
+      <p class="section-label" style="margin-bottom:14px; font-weight:500;">Mark which chapter you've actually studied through for each list. "Review due words" in Learning Mode only pulls from chapters marked here — browsing/practicing any chapter in Learning Mode itself stays unrestricted.</p>
+      <div id="chapterProgressList"></div>
     </section>
 
     <!-- ============ WORD DECKS ============ -->
@@ -418,7 +433,7 @@
 
   </div>
 
-  <script src="data.js?v=82"></script>
-  <script src="script.js?v=82"></script>
+  <script src="data.js?v=83"></script>
+  <script src="script.js?v=83"></script>
 </body>
 </html>

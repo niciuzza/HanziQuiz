@@ -8,6 +8,7 @@ const HANZI_FONT_KEY = 'hsk-vocab-hanzi-font';
 const SRS_KEY = 'hsk-vocab-srs';
 const FLASHCARD_SESSION_KEY = 'hsk-vocab-flashcard-session';
 const LAST_STUDY_MODE_KEY = 'hsk-vocab-last-study-mode'; // 'quiz' or 'flashcards' — which resumable session to prefer on load if both exist
+const CHAPTER_PROGRESS_KEY = 'hsk-vocab-chapter-progress'; // { [listTag]: chapterNumber } — "studied through chapter N", set explicitly in Settings/end-of-session, never inferred from whatever's browsed in the picker
 // build number = this script's own cache-busting "?v=" query param, so it's never a second
 // place that needs bumping — reading it back out just reflects whatever was already bumped
 const APP_BUILD = (() => {
@@ -46,6 +47,7 @@ let screenBeforeSettings = 'home';
 let learningList = null; // built-in list tag currently picked, e.g. 'ES1', or null if none yet
 let learningChapters = new Set(); // chapter numbers explicitly ticked in the chip picker
 let learningCumulative = false; // "include all chapters before this one too"
+let chapterProgress = {}; // { [listTag]: chapterNumber } — see CHAPTER_PROGRESS_KEY; independent of learningChapters/learningCumulative, which are just this session's browsing selection
 let flashcardPool = [];
 let flashcardIndex = 0;
 let flashcardRevealed = false;
@@ -663,6 +665,60 @@ function learningPool(){
   return combinedPool().filter(w => w.tags.includes(learningList) && chapters.has(w.chapters[learningList]));
 }
 
+/* ---------- chapter progress: "studied through chapter N" per list, set explicitly in
+   Settings or via the end-of-flashcard-session prompt — deliberately independent of
+   learningChapters/learningCumulative (the picker above), which is just free browsing and
+   never writes here on its own. Used to scope "Review due words" to chapters actually studied. */
+function loadChapterProgress(){
+  try {
+    const raw = localStorage.getItem(CHAPTER_PROGRESS_KEY);
+    chapterProgress = raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    chapterProgress = {};
+  }
+}
+function saveChapterProgress(){
+  try { localStorage.setItem(CHAPTER_PROGRESS_KEY, JSON.stringify(chapterProgress)); } catch (e) {}
+}
+function setChapterProgress(tag, chapter){
+  if (chapter > 0) chapterProgress[tag] = chapter; else delete chapterProgress[tag];
+  saveChapterProgress();
+}
+// words in `tag` at or below its marked "studied through" chapter — empty if nothing marked yet
+function studiedPoolForList(tag){
+  const maxCh = chapterProgress[tag] || 0;
+  if (!tag || maxCh === 0) return [];
+  return combinedPool().filter(w => w.tags.includes(tag) && w.chapters[tag] && w.chapters[tag] <= maxCh);
+}
+function renderChapterProgressScreen(){
+  const container = document.getElementById('chapterProgressList');
+  container.innerHTML = '';
+  chapterTaggedListTags().forEach(tag => {
+    const current = chapterProgress[tag] || 0;
+    const wrap = document.createElement('div');
+    wrap.className = 'settings-menu-item settings-menu-item-stack';
+    const label = document.createElement('span');
+    label.textContent = `${tag} — ${current > 0 ? `studied through chapter ${current}` : 'not started'}`;
+    wrap.appendChild(label);
+    const row = document.createElement('div');
+    row.className = 'tag-filter-row';
+    const noneBtn = document.createElement('button');
+    noneBtn.textContent = 'None';
+    noneBtn.className = current === 0 ? 'active' : '';
+    noneBtn.onclick = () => { setChapterProgress(tag, 0); renderChapterProgressScreen(); };
+    row.appendChild(noneBtn);
+    chaptersForList(tag).forEach(ch => {
+      const btn = document.createElement('button');
+      btn.textContent = String(ch);
+      btn.className = current === ch ? 'active' : '';
+      btn.onclick = () => { setChapterProgress(tag, ch); renderChapterProgressScreen(); };
+      row.appendChild(btn);
+    });
+    wrap.appendChild(row);
+    container.appendChild(wrap);
+  });
+}
+
 function renderLearningHome(){
   const listRow = document.getElementById('learningListRow');
   listRow.innerHTML = '';
@@ -698,7 +754,9 @@ function renderLearningHome(){
   }
 
   const pool = learningPool();
-  const duePool = pool.filter(isDue);
+  // due words are scoped to what's actually marked studied (Settings > Chapter progress), not
+  // to whatever chapters happen to be browsed/selected above — see studiedPoolForList()
+  const duePool = studiedPoolForList(learningList).filter(isDue);
   const allChaptersLabel = learningList && learningChapters.size === 0 ? ' (all chapters)' : '';
   document.getElementById('learningPoolCount').textContent = pool.length
     ? `${pool.length} word${pool.length === 1 ? '' : 's'} in this selection${allChaptersLabel} · ${duePool.length} due for review today`
@@ -719,7 +777,7 @@ document.getElementById('learningCumulativeToggle').onclick = () => {
 };
 document.getElementById('learningStartBtn').onclick = () => startFlashcards();
 document.getElementById('learningQuizBtn').onclick = () => startPracticeRound(learningPool());
-document.getElementById('learningReviewDueBtn').onclick = () => startFlashcards(learningPool().filter(isDue));
+document.getElementById('learningReviewDueBtn').onclick = () => startFlashcards(studiedPoolForList(learningList).filter(isDue));
 document.getElementById('homeModeLearningBtn').onclick = () => showScreen('learningHome');
 document.getElementById('learningModeQuizBtn').onclick = () => showScreen('home');
 
@@ -778,6 +836,24 @@ function renderFlashcard(){
     document.getElementById('flashcardDoneText').textContent =
       `You've reviewed all ${flashcardPool.length} word${flashcardPool.length === 1 ? '' : 's'} in this selection.`;
     document.getElementById('flashcardPositionText').textContent = '';
+    // offer to advance the "studied through" marker (Settings > Chapter progress) only if this
+    // session actually reached further than it — never offered to move it backward, and never
+    // shown at all for a session with no chapter context (e.g. reviewing a mixed word list)
+    const markBtn = document.getElementById('flashcardMarkLearnedBtn');
+    const maxChapter = learningList
+      ? Math.max(0, ...flashcardPool.map(w => (w.tags.includes(learningList) && w.chapters[learningList]) || 0))
+      : 0;
+    const currentProgress = learningList ? (chapterProgress[learningList] || 0) : 0;
+    if (learningList && maxChapter > currentProgress) {
+      markBtn.textContent = `Mark ${learningList} chapter ${maxChapter} as learned`;
+      markBtn.classList.remove('hidden');
+      markBtn.onclick = () => {
+        setChapterProgress(learningList, maxChapter);
+        markBtn.classList.add('hidden');
+      };
+    } else {
+      markBtn.classList.add('hidden');
+    }
     return;
   }
   card.classList.remove('hidden');
@@ -1713,7 +1789,7 @@ document.getElementById('startBtn').onclick = () => {
 document.getElementById('resumeBtn').onclick = () => showScreen('quiz');
 
 /* ---------- navigation ---------- */
-const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'progressFlashcard', 'addWord', 'wordDetail'];
+const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'chapterProgress', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'progressFlashcard', 'addWord', 'wordDetail'];
 function showScreen(name){
   SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
   screen = name;
@@ -1726,6 +1802,7 @@ function showScreen(name){
   if (name === 'flashcards') renderFlashcard();
   if (name === 'quiz') newQuestion();
   if (name === 'results') renderResults();
+  if (name === 'chapterProgress') renderChapterProgressScreen();
   if (name === 'wordDecks') { renderListFilterOptions(); renderDeckTopicFilter(); renderList(); }
   if (name === 'myProgress') renderProgress();
   if (name === 'progressWrong') renderProgressWrong();
@@ -1787,6 +1864,8 @@ document.getElementById('quizExitBtn').onclick = () => showScreen('home');
 document.getElementById('settingsBackBtn').onclick = () => showScreen(screenBeforeSettings);
 document.getElementById('openWordDecksBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDecksBackBtn').onclick = () => showScreen('settings');
+document.getElementById('openChapterProgressBtn').onclick = () => showScreen('chapterProgress');
+document.getElementById('chapterProgressBackBtn').onclick = () => showScreen('settings');
 document.getElementById('homeProgressBtn').onclick = () => showScreen('myProgress');
 document.getElementById('learningProgressBtn').onclick = () => showScreen('myProgress');
 document.getElementById('learningSettingsBtn').onclick = () => { screenBeforeSettings = 'learningHome'; showScreen('settings'); };
@@ -1838,6 +1917,7 @@ loadHardMode();
 loadHanziFont();
 loadStats();
 loadSrs();
+loadChapterProgress();
 activeTags = new Set(); // no word list selected by default — the user picks explicitly
 loadSession(); // may override score/total/streak/activeTags/roundSize/roundKeys with a resumed session
 loadWords();
