@@ -30,6 +30,7 @@ let listFilterTags = new Set();
 let listFilterTopics = new Set(); // Word Decks' own topic filter — independent of Home's activeTopics
 let overlapOnly = false;
 let chapterTaggedOnly = false;
+let wordListView = localStorage.getItem('hsk-vocab-word-list-view') || 'list'; // 'list' | 'grid'
 const UNSEEN_BONUS = 8; // weight multiplier for words never asked before (correct+wrong+dontknow === 0)
 let roundSize = 'all'; // 25|50|100|150|200|250|'all' — how many unique words make up the current round
 let roundKeys = null; // array of statKeys in the current round, or null if not yet rolled
@@ -972,15 +973,25 @@ function renderList(){
     ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'} across all lists`
     : `${filtered.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'} shown`;
   const box = document.getElementById('wordList');
+  const grid = document.getElementById('wordGrid');
+  box.classList.toggle('hidden', wordListView !== 'list');
+  grid.classList.toggle('hidden', wordListView !== 'grid');
+  document.getElementById('wordViewListBtn').classList.toggle('active', wordListView === 'list');
+  document.getElementById('wordViewGridBtn').classList.toggle('active', wordListView === 'grid');
+  const emptyState = !expanded && words.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Home screen.</div>'
+    : filtered.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words match your search/filter.</div>'
+    : null;
+  if (wordListView === 'grid') {
+    renderWordGrid(grid, filtered, emptyState);
+  } else {
+    renderWordListRows(box, filtered, emptyState);
+  }
+}
+function renderWordListRows(box, filtered, emptyState){
   box.innerHTML = '';
-  if (!expanded && words.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No custom words yet — add your own below, or pick a built-in list on the Home screen.</div>';
-    return;
-  }
-  if (filtered.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words match your search/filter.</div>';
-    return;
-  }
+  if (emptyState) { box.innerHTML = emptyState; return; }
   [...filtered].reverse().forEach(w => {
     const idx = words.findIndex(w2 => w2.c === w.c && w2.m === w.m);
     const badges = w.tags.map(badgeHTML).join(' ');
@@ -1014,6 +1025,24 @@ function renderList(){
       renderTagOptions();
       renderRoundSizeOptions();
     };
+  });
+}
+// dense vocabulary-table style view (like a printed HSK word list): pinyin over hanzi, no
+// meaning shown, sorted alphabetically by pinyin instead of insertion order — the point is
+// fast visual scanning, not browsing what's recently changed
+function renderWordGrid(grid, filtered, emptyState, fromScreen){
+  grid.innerHTML = '';
+  if (emptyState) { grid.innerHTML = emptyState; return; }
+  const sorted = [...filtered].sort((a, b) => detone(a.p).localeCompare(detone(b.p)));
+  sorted.forEach(w => {
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    cell.innerHTML = `
+      <span class="grid-cell-pinyin">${spacedPinyin(w.p)}</span>
+      <span class="grid-cell-char">${w.c}</span>
+    `;
+    cell.onclick = () => showWordDetail(w, fromScreen);
+    grid.appendChild(cell);
   });
 }
 
@@ -1148,17 +1177,36 @@ function startPracticeRound(words){
   showScreen('quiz');
 }
 
+// shared by every My Progress list screen (and Word Decks) — shows/hides the row-list vs.
+// grid containers and syncs the toggle buttons' active state to the one global wordListView
+function applyWordListView(listBoxId, gridBoxId, listBtnId, gridBtnId){
+  document.getElementById(listBoxId).classList.toggle('hidden', wordListView !== 'list');
+  document.getElementById(gridBoxId).classList.toggle('hidden', wordListView !== 'grid');
+  document.getElementById(listBtnId).classList.toggle('active', wordListView === 'list');
+  document.getElementById(gridBtnId).classList.toggle('active', wordListView === 'grid');
+}
+// renders either the row list (via buildRow, screen-specific) or the shared pinyin/hanzi grid,
+// whichever wordListView currently selects — both draw from the same `words` array/emptyState
+function renderListOrGrid(words, emptyState, listBoxId, gridBoxId, fromScreen, buildRow){
+  if (wordListView === 'grid') {
+    renderWordGrid(document.getElementById(gridBoxId), words, emptyState, fromScreen);
+  } else {
+    const box = document.getElementById(listBoxId);
+    box.innerHTML = '';
+    if (emptyState) { box.innerHTML = emptyState; }
+    else { words.forEach(w => box.appendChild(buildRow(w))); }
+  }
+}
+
 function renderProgressWrong(){
   renderProgressFilterRow('wrongFilterRow', renderProgressWrong);
   renderProgressSortRow('wrongSortRow', renderProgressWrong);
   const wrongWords = sortProgressWords(progressPool().filter(w => w.wrong > 0), 'wrong');
-  const box = document.getElementById('wrongList');
-  box.innerHTML = '';
-  if (wrongWords.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No wrong answers yet — nice!</div>';
-  } else {
-    wrongWords.forEach(w => box.appendChild(buildWordRow(w, 'wrong', renderProgressWrong, 'progressWrong')));
-  }
+  applyWordListView('wrongList', 'wrongGrid', 'wrongViewListBtn', 'wrongViewGridBtn');
+  const emptyState = wrongWords.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No wrong answers yet — nice!</div>' : null;
+  renderListOrGrid(wrongWords, emptyState, 'wrongList', 'wrongGrid', 'progressWrong',
+    w => buildWordRow(w, 'wrong', renderProgressWrong, 'progressWrong'));
   document.getElementById('resetWrongBtn').classList.toggle('hidden', wrongWords.length === 0);
   const practiceBtn = document.getElementById('practiceWrongBtn');
   practiceBtn.classList.toggle('hidden', wrongWords.length === 0);
@@ -1170,13 +1218,11 @@ function renderProgressDontKnow(){
   renderProgressFilterRow('dontKnowFilterRow', renderProgressDontKnow);
   renderProgressSortRow('dontKnowSortRow', renderProgressDontKnow);
   const dontKnowWords = sortProgressWords(progressPool().filter(w => w.dontknow > 0), 'dontknow');
-  const box = document.getElementById('dontKnowList');
-  box.innerHTML = '';
-  if (dontKnowWords.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">Nothing marked "I don\'t know" yet.</div>';
-  } else {
-    dontKnowWords.forEach(w => box.appendChild(buildWordRow(w, 'dontknow', renderProgressDontKnow, 'progressDontKnow')));
-  }
+  applyWordListView('dontKnowList', 'dontKnowGrid', 'dontKnowViewListBtn', 'dontKnowViewGridBtn');
+  const emptyState = dontKnowWords.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">Nothing marked "I don\'t know" yet.</div>' : null;
+  renderListOrGrid(dontKnowWords, emptyState, 'dontKnowList', 'dontKnowGrid', 'progressDontKnow',
+    w => buildWordRow(w, 'dontknow', renderProgressDontKnow, 'progressDontKnow'));
   document.getElementById('resetDontKnowBtn').classList.toggle('hidden', dontKnowWords.length === 0);
   const practiceBtn = document.getElementById('practiceDontKnowBtn');
   practiceBtn.classList.toggle('hidden', dontKnowWords.length === 0);
@@ -1188,14 +1234,12 @@ function renderProgressMastered(){
   renderProgressFilterRow('masteredFilterRow', renderProgressMastered);
   renderProgressSortRow('masteredSortRow', renderProgressMastered);
   const masteredWords = sortProgressWords(progressPool().filter(w => w.correct > 0), 'correct');
-  const box = document.getElementById('masteredList');
-  box.innerHTML = '';
-  if (masteredWords.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No mastered words yet.</div>';
-  } else {
-    // clearing a mastered word's "correct" count un-masters it, so it can appear in quizzes again
-    masteredWords.forEach(w => box.appendChild(buildWordRow(w, 'correct', renderProgressMastered, 'progressMastered')));
-  }
+  applyWordListView('masteredList', 'masteredGrid', 'masteredViewListBtn', 'masteredViewGridBtn');
+  const emptyState = masteredWords.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No mastered words yet.</div>' : null;
+  // clearing a mastered word's "correct" count un-masters it, so it can appear in quizzes again
+  renderListOrGrid(masteredWords, emptyState, 'masteredList', 'masteredGrid', 'progressMastered',
+    w => buildWordRow(w, 'correct', renderProgressMastered, 'progressMastered'));
   document.getElementById('resetMasteredBtn').classList.toggle('hidden', masteredWords.length === 0);
   const practiceBtn = document.getElementById('practiceMasteredBtn');
   practiceBtn.classList.toggle('hidden', masteredWords.length === 0);
@@ -1239,13 +1283,11 @@ function renderProgressFlashcard(){
   renderProgressFilterRow('flashcardListFilterRow', renderProgressFlashcard, chapterTaggedListTags());
   renderSrsLevelFilterRow('flashcardFilterRow', renderProgressFlashcard);
   const studiedWords = flashcardStudiedPool().sort((a, b) => a.srs.intervalIndex - b.srs.intervalIndex);
-  const box = document.getElementById('flashcardProgressList');
-  box.innerHTML = '';
-  if (studiedWords.length === 0) {
-    box.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words studied in Flashcard mode yet.</div>';
-  } else {
-    studiedWords.forEach(w => box.appendChild(buildFlashcardProgressRow(w, renderProgressFlashcard)));
-  }
+  applyWordListView('flashcardProgressList', 'flashcardGrid', 'flashcardViewListBtn', 'flashcardViewGridBtn');
+  const emptyState = studiedWords.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words studied in Flashcard mode yet.</div>' : null;
+  renderListOrGrid(studiedWords, emptyState, 'flashcardProgressList', 'flashcardGrid', 'progressFlashcard',
+    w => buildFlashcardProgressRow(w, renderProgressFlashcard));
   document.getElementById('resetFlashcardProgressBtn').classList.toggle('hidden', studiedWords.length === 0);
   // routes to Flashcard, not Quiz — flashcard is what actually reads/updates srsMap, so it's
   // the mode that matches what this list is tracking (see SRS_LEVELS)
@@ -1886,6 +1928,23 @@ document.getElementById('quizExitBtn').onclick = () => showScreen('home');
 document.getElementById('settingsBackBtn').onclick = () => showScreen(screenBeforeSettings);
 document.getElementById('openWordDecksBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDecksBackBtn').onclick = () => showScreen('settings');
+// one shared list/grid preference across Word Decks and every My Progress list screen —
+// onRender re-renders whichever screen the toggle was clicked from
+function setWordListView(mode, onRender){
+  wordListView = mode;
+  localStorage.setItem('hsk-vocab-word-list-view', mode);
+  onRender();
+}
+document.getElementById('wordViewListBtn').onclick = () => setWordListView('list', renderList);
+document.getElementById('wordViewGridBtn').onclick = () => setWordListView('grid', renderList);
+document.getElementById('wrongViewListBtn').onclick = () => setWordListView('list', renderProgressWrong);
+document.getElementById('wrongViewGridBtn').onclick = () => setWordListView('grid', renderProgressWrong);
+document.getElementById('dontKnowViewListBtn').onclick = () => setWordListView('list', renderProgressDontKnow);
+document.getElementById('dontKnowViewGridBtn').onclick = () => setWordListView('grid', renderProgressDontKnow);
+document.getElementById('masteredViewListBtn').onclick = () => setWordListView('list', renderProgressMastered);
+document.getElementById('masteredViewGridBtn').onclick = () => setWordListView('grid', renderProgressMastered);
+document.getElementById('flashcardViewListBtn').onclick = () => setWordListView('list', renderProgressFlashcard);
+document.getElementById('flashcardViewGridBtn').onclick = () => setWordListView('grid', renderProgressFlashcard);
 document.getElementById('openChapterProgressBtn').onclick = () => showScreen('chapterProgress');
 document.getElementById('chapterProgressBackBtn').onclick = () => showScreen('settings');
 document.getElementById('homeProgressBtn').onclick = () => showScreen('myProgress');
