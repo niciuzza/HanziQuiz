@@ -700,21 +700,21 @@ function renderChapterProgressScreen(){
     const label = document.createElement('span');
     label.textContent = `${tag} — ${current > 0 ? `studied through chapter ${current}` : 'not started'}`;
     wrap.appendChild(label);
-    const row = document.createElement('div');
-    row.className = 'tag-filter-row';
-    const noneBtn = document.createElement('button');
-    noneBtn.textContent = 'None';
-    noneBtn.className = current === 0 ? 'active' : '';
-    noneBtn.onclick = () => { setChapterProgress(tag, 0); renderChapterProgressScreen(); };
-    row.appendChild(noneBtn);
+    const select = document.createElement('select');
+    select.className = 'chapter-progress-select';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '0';
+    noneOpt.textContent = 'None';
+    select.appendChild(noneOpt);
     chaptersForList(tag).forEach(ch => {
-      const btn = document.createElement('button');
-      btn.textContent = String(ch);
-      btn.className = current === ch ? 'active' : '';
-      btn.onclick = () => { setChapterProgress(tag, ch); renderChapterProgressScreen(); };
-      row.appendChild(btn);
+      const opt = document.createElement('option');
+      opt.value = String(ch);
+      opt.textContent = `Chapter ${ch}`;
+      select.appendChild(opt);
     });
-    wrap.appendChild(row);
+    select.value = String(current);
+    select.onchange = () => { setChapterProgress(tag, Number(select.value)); renderChapterProgressScreen(); };
+    wrap.appendChild(select);
     container.appendChild(wrap);
   });
 }
@@ -1044,10 +1044,13 @@ function buildWordRow(w, clearField, onCleared){
 
 // shared by each dedicated progress list screen — progressTags itself stays one global
 // selection (not per-screen), only the control to change it moved off the My Progress hub
-function renderProgressFilterRow(containerId, onChange){
-  const tags = sortListTags(new Set(combinedPool().flatMap(w => w.tags)));
-  // drop selected tags that no longer exist (e.g. after deleting the last custom word with that tag)
-  progressTags.forEach(t => { if (!tags.includes(t)) progressTags.delete(t); });
+function renderProgressFilterRow(containerId, onChange, tagsOverride){
+  const allTags = sortListTags(new Set(combinedPool().flatMap(w => w.tags)));
+  const tags = tagsOverride || allTags;
+  // drop selected tags that no longer exist (e.g. after deleting the last custom word with that
+  // tag) — checked against every valid tag, not just this row's (possibly restricted) button set,
+  // since progressTags is shared across all 4 progress screens
+  progressTags.forEach(t => { if (!allTags.includes(t)) progressTags.delete(t); });
   const row = document.getElementById(containerId);
   row.innerHTML = '';
   let prevTag = null;
@@ -1214,13 +1217,19 @@ function renderSrsLevelFilterRow(containerId, onChange){
   });
 }
 function flashcardStudiedPool(){
-  return combinedPool().filter(w => w.srs && (progressSrsLevels.size === 0 || progressSrsLevels.has(w.srs.intervalIndex)));
+  return combinedPool().filter(w => w.srs
+    && (progressSrsLevels.size === 0 || progressSrsLevels.has(w.srs.intervalIndex))
+    && (progressTags.size === 0 || w.tags.some(t => progressTags.has(t))));
 }
 
 // unlike the other 3 lists (which sort "worst first" by a wrong/dontknow/correct count),
 // least-confident-first here means lowest SRS interval index — no percent-accuracy concept
 // applies to flashcard self-ratings
 function renderProgressFlashcard(){
+  // restricted to chapter-tagged lists only — this filter exists to narrow "studied via
+  // flashcard" down to a specific list for chapter-based review, which only makes sense for
+  // lists that actually have chapters (HSK1, ES1, ES2)
+  renderProgressFilterRow('flashcardListFilterRow', renderProgressFlashcard, chapterTaggedListTags());
   renderSrsLevelFilterRow('flashcardFilterRow', renderProgressFlashcard);
   const studiedWords = flashcardStudiedPool().sort((a, b) => a.srs.intervalIndex - b.srs.intervalIndex);
   const box = document.getElementById('flashcardProgressList');
@@ -1272,8 +1281,9 @@ document.getElementById('resetWrongBtn').onclick = () => resetProgressField('wro
 document.getElementById('resetDontKnowBtn').onclick = () => resetProgressField('dontknow', "marked I don't know", renderProgressDontKnow);
 document.getElementById('resetMasteredBtn').onclick = () => resetProgressField('correct', "mastered", renderProgressMastered);
 document.getElementById('resetFlashcardProgressBtn').onclick = () => {
-  const scopeLabel = progressSrsLevels.size === 0 ? 'all levels' : [...progressSrsLevels].map(i => SRS_LEVELS[i].label).join(', ');
-  const ok = confirm(`Clear flashcard study progress for ${scopeLabel}? This can't be undone.`);
+  const levelLabel = progressSrsLevels.size === 0 ? 'all levels' : [...progressSrsLevels].map(i => SRS_LEVELS[i].label).join(', ');
+  const listLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
+  const ok = confirm(`Clear flashcard study progress for ${levelLabel} (${listLabel})? This can't be undone.`);
   if (!ok) return;
   flashcardStudiedPool().forEach(w => clearWordSrs(w.c, w.m));
   renderProgressFlashcard();
