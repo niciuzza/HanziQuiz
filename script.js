@@ -277,11 +277,14 @@ function clearWordSrs(c, m){
   delete srsMap[k];
   saveSrs();
 }
-// a word with no rating history yet is always due — it hasn't been reviewed, so there's nothing
-// to wait out
+// only words that have actually been rated at least once and have fallen past their scheduled
+// review time count as "due" — a never-studied word isn't due for review, it's due to be
+// learned for the first time (that's what plain "Start flashcards" is for). Without this,
+// "Review due words" would flood a session with brand-new, never-seen words from chapters the
+// learner hasn't gotten to yet, which is discouraging rather than a helpful review queue.
 function isDue(w){
   const s = getSrs(w.c, w.m);
-  return !s || s.nextReviewAt <= Date.now();
+  return !!s && s.nextReviewAt <= Date.now();
 }
 // rating: 'unknown' resets the schedule to day 1 (regardless of prior progress); 'hesitant'
 // repeats the current step without advancing; 'instant' advances one step (capped at the
