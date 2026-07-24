@@ -18,6 +18,8 @@
   --hsk4-text:#d97706;
   --hsk5-bg:#fff1f2;
   --hsk5-text:#e11d48;
+  --hsk6-bg:#f0fdfa;
+  --hsk6-text:#0d9488;
   --es-bg:#f0f9ff;
   --es-text:#0284c7;
   --success-bg:#ecfdf5;
@@ -57,6 +59,8 @@
     --hsk4-text:#fcd34d;
     --hsk5-bg:#881337;
     --hsk5-text:#fda4af;
+    --hsk6-bg:#134e4a;
+    --hsk6-text:#5eead4;
     --es-bg:#0c4a6e;
     --es-text:#7dd3fc;
     --success-bg:#064e3b;
@@ -94,6 +98,8 @@
   --hsk4-text:#d97706;
   --hsk5-bg:#fff1f2;
   --hsk5-text:#e11d48;
+  --hsk6-bg:#f0fdfa;
+  --hsk6-text:#0d9488;
   --es-bg:#f0f9ff;
   --es-text:#0284c7;
   --success-bg:#ecfdf5;
@@ -130,6 +136,8 @@
   --hsk4-text:#fcd34d;
   --hsk5-bg:#881337;
   --hsk5-text:#fda4af;
+  --hsk6-bg:#134e4a;
+  --hsk6-text:#5eead4;
   --es-bg:#0c4a6e;
   --es-text:#7dd3fc;
   --success-bg:#064e3b;
@@ -308,6 +316,7 @@ input::placeholder{ color:var(--text-muted); }
 .tag-filter-row button.active.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); border-color:var(--hsk3-text); }
 .tag-filter-row button.active.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); border-color:var(--hsk4-text); }
 .tag-filter-row button.active.hsk5{ background:var(--hsk5-bg); color:var(--hsk5-text); border-color:var(--hsk5-text); }
+.tag-filter-row button.active.hsk6{ background:var(--hsk6-bg); color:var(--hsk6-text); border-color:var(--hsk6-text); }
 .tag-filter-row button.active.es{ background:var(--es-bg); color:var(--es-text); border-color:var(--es-text); }
 .tag-filter-row button.active.custom-tag{
   background:hsl(var(--tag-hue, 220), var(--tag-sat), var(--tag-bg-l));
@@ -693,6 +702,7 @@ button.settings-menu-item:hover{ background:var(--surface-1); }
 .badge.hsk3{ background:var(--hsk3-bg); color:var(--hsk3-text); }
 .badge.hsk4{ background:var(--hsk4-bg); color:var(--hsk4-text); }
 .badge.hsk5{ background:var(--hsk5-bg); color:var(--hsk5-text); }
+.badge.hsk6{ background:var(--hsk6-bg); color:var(--hsk6-text); }
 .badge.es{ background:var(--es-bg); color:var(--es-text); }
 .badge.other{ background:var(--surface-1); color:var(--text-secondary); border:1px solid var(--border); }
 .badge.custom-tag{

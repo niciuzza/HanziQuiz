@@ -18,7 +18,7 @@ const APP_BUILD = (() => {
     return m ? m[1] : '?';
   } catch (e) { return '?'; }
 })();
-const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, HSK5: FULL_HSK5, ES1: FULL_ES1, ES2: FULL_ES2 };
+const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, HSK5: FULL_HSK5, HSK6: FULL_HSK6, ES1: FULL_ES1, ES2: FULL_ES2 };
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
@@ -402,11 +402,12 @@ const TINT_VARS = {
   hsk3: { bg: '--hsk3-bg', solid: '--hsk3-text' },
   hsk4: { bg: '--hsk4-bg', solid: '--hsk4-text' },
   hsk5: { bg: '--hsk5-bg', solid: '--hsk5-text' },
+  hsk6: { bg: '--hsk6-bg', solid: '--hsk6-text' },
   es: { bg: '--es-bg', solid: '--es-text' },
   other: { bg: '--surface-1', solid: '--accent-solid' },
 };
 function primaryTag(tags){
-  const order = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1', 'ES2'];
+  const order = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'HSK6', 'ES1', 'ES2'];
   for (const t of order) if (tags.includes(t)) return t;
   return tags[0] || null;
 }
@@ -443,6 +444,7 @@ function tagClass(tag){
   if (tag === 'HSK3') return 'hsk3';
   if (tag === 'HSK4') return 'hsk4';
   if (tag === 'HSK5') return 'hsk5';
+  if (tag === 'HSK6') return 'hsk6';
   if (tag.startsWith('ES')) return 'es';
   if (tag === 'untagged') return 'other';
   return 'custom-tag';
@@ -1132,7 +1134,7 @@ function renderProgress(){
 // falling back to `field` (wrong/dontknow/correct count) as a tiebreaker within the same list;
 // 'percent' sorts by accuracy ascending (worst first — the words most worth reviewing).
 let progressSortMode = 'list';
-const LIST_SORT_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1', 'ES2'];
+const LIST_SORT_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'HSK6', 'ES1', 'ES2'];
 function listSortIndex(tags){
   const idx = LIST_SORT_ORDER.indexOf(primaryTag(tags));
   return idx === -1 ? LIST_SORT_ORDER.length : idx;
@@ -1375,7 +1377,7 @@ function renderAddWordLevelOptions(){
   // hardcoded rather than derived from BUILTIN_LISTS since this offers every built-in list as
   // an Add Word destination regardless of whether the user has any words in it yet — add future
   // lists (e.g. ES2/ES3) here too when they're added to data.js
-  ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'ES1', 'ES2'].forEach(t => {
+  ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'HSK6', 'ES1', 'ES2'].forEach(t => {
     appendTagRowBreak(row, t, prevTag);
     prevTag = t;
     const btn = document.createElement('button');
@@ -1500,7 +1502,7 @@ function clusterSenses(entries){
   });
   return clusters;
 }
-const HSK_LEVEL_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5'];
+const HSK_LEVEL_ORDER = ['HSK1', 'HSK2', 'HSK3', 'HSK4', 'HSK5', 'HSK6'];
 
 // for a genuinely polyphonic single character (per clusterSenses, same definition hard mode
 // uses), find a compound word elsewhere in the pool that uses this exact reading, so a
