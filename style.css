@@ -308,23 +308,19 @@ input::placeholder{ color:var(--text-muted); }
 .outline-btn:hover{ background:var(--surface-1); }
 
 /* ---------- stroke-order animation (HanziWriter) ---------- */
+/* sits in place of the plain-text character (see renderWordDetail/renderFlashcard), inside the
+   same tinted card, so no border/background of its own — it should read as "the character,
+   animated" rather than a separate boxed-off section */
 .stroke-anim-container{
   display:flex;
   flex-wrap:wrap;
-  gap:8px;
+  gap:4px;
   justify-content:center;
-  margin-top:14px;
-  padding:12px;
-  border:1px solid var(--border);
-  border-radius:var(--radius-lg);
-  background:var(--surface-2);
+  margin-bottom:10px;
 }
 .stroke-anim-char{
   width:90px;
   height:90px;
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  background:var(--surface-1);
   flex:0 0 auto;
 }
 .stroke-anim-char.stroke-anim-missing{ opacity:.35; }

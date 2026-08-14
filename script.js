@@ -64,9 +64,10 @@ function renderStrokeAnimation(container, word){
           width: 90, height: 90, padding: 5,
           strokeColor, radicalColor: highlightColor, outlineColor,
           strokeAnimationSpeed: 1, delayBetweenStrokes: 300, strokeFadeDuration: 200,
+          delayBetweenLoops: 1500,
           showOutline: true,
           onLoadCharDataError: () => { box.classList.add('stroke-anim-missing'); },
-        }).animateCharacter();
+        }).loopCharacterAnimation();
       } catch (e) { box.classList.add('stroke-anim-missing'); }
     });
   });
@@ -953,8 +954,9 @@ function renderFlashcard(){
   document.getElementById('flashcardMeaning').textContent = w.m;
   document.getElementById('flashcardSpeakBtn').onclick = (e) => { e.stopPropagation(); speak(w.c); };
   // 'writing' mode flips which side is the front: meaning+pinyin (flashcardRevealInfo) is
-  // always visible instead of reveal-gated, and the hanzi (flashcardChar) becomes the
-  // reveal-gated answer instead of always-visible — see flashcardMode
+  // always visible instead of reveal-gated, and the hanzi is the reveal-gated answer — but in
+  // writing mode the plain-text hanzi (flashcardChar) is never shown at all, replaced in place
+  // by the stroke animation once revealed (see flashcardStrokeAnim below) — see flashcardMode
   const writing = flashcardMode === 'writing';
   const disambigEl = document.getElementById('flashcardDisambig');
   const example = findDisambiguationExample(w);
@@ -963,7 +965,7 @@ function renderFlashcard(){
   // would hand over the answer before the reveal, so gate it behind flashcardRevealed too
   disambigEl.classList.toggle('hidden', !example || (writing && !flashcardRevealed));
   if (example) disambigEl.innerHTML = `as in <b>${example.c}</b>`;
-  document.getElementById('flashcardChar').classList.toggle('hidden', writing && !flashcardRevealed);
+  document.getElementById('flashcardChar').classList.toggle('hidden', writing);
   document.getElementById('flashcardRevealInfo').classList.toggle('hidden', writing ? false : !flashcardRevealed);
   hint.classList.toggle('hidden', flashcardRevealed);
   rateRow.classList.toggle('hidden', writing || !flashcardRevealed);
@@ -2076,16 +2078,20 @@ function renderWordDetail(){
   const tv = tintOf(primaryTag(w.tags));
   document.getElementById('detailCard').style.background = `var(${tv.bg})`;
 
-  // stroke animation resets fully on every entry to this screen (it's re-run for every word),
-  // and only shows on an explicit click — not autoplay here, unlike the flashcard reveal
+  // stroke animation replaces the plain-text character in place (not a separate box below it),
+  // and resets fully on every entry to this screen since it's re-run for every word. Only shows
+  // on an explicit click — not autoplay here, unlike the flashcard reveal.
+  const detailCharEl = document.getElementById('detailChar');
   const strokeBtn = document.getElementById('detailStrokeBtn');
   const strokeContainer = document.getElementById('detailStrokeAnim');
+  detailCharEl.classList.remove('hidden');
   strokeContainer.classList.add('hidden');
   strokeContainer.innerHTML = '';
   strokeContainer._hwToken = (strokeContainer._hwToken || 0) + 1; // invalidate any in-flight render from the previous word
   strokeBtn.classList.remove('hidden');
   strokeBtn.textContent = '✍️ Show stroke order';
   strokeBtn.onclick = () => {
+    detailCharEl.classList.add('hidden');
     strokeContainer.classList.remove('hidden');
     strokeBtn.classList.add('hidden'); // one-shot per word; re-shown next time this screen opens
     renderStrokeAnimation(strokeContainer, w.c);
