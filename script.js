@@ -239,8 +239,14 @@ function setupHanziFontMenu(triggerId, menuId){
 function statKey(c, m){ return c + '::' + m; }
 function getStats(c, m){
   const s = statsMap[statKey(c, m)];
-  if (!s) return { correct: 0, wrong: 0, dontknow: 0 };
-  return { correct: s.correct || 0, wrong: s.wrong || 0, dontknow: s.dontknow || 0 };
+  if (!s) return { correct: 0, wrong: 0, dontknow: 0, writeCorrect: 0, writeWrong: 0 };
+  return {
+    correct: s.correct || 0, wrong: s.wrong || 0, dontknow: s.dontknow || 0,
+    // writing-practice (Learning Mode's Write flashcard mode) is tracked separately from
+    // quiz/recognition correct+wrong — see project memory: conflating them would make a word
+    // look "Mastered" from quiz answers alone even if it can't actually be written
+    writeCorrect: s.writeCorrect || 0, writeWrong: s.writeWrong || 0,
+  };
 }
 function bumpStat(c, m, field){
   const k = statKey(c, m);
@@ -253,6 +259,16 @@ function clearWordStat(c, m, field){
   const k = statKey(c, m);
   if (!statsMap[k]) return;
   statsMap[k][field] = 0;
+  saveStats();
+}
+// resets both writing-practice fields at once, like clearWordSrs resets a whole SRS record —
+// the writing-practice list's clear button removes a word from that list entirely, not just
+// one of its two counters
+function clearWordWriting(c, m){
+  const k = statKey(c, m);
+  if (!statsMap[k]) return;
+  statsMap[k].writeCorrect = 0;
+  statsMap[k].writeWrong = 0;
   saveStats();
 }
 function loadStats(){
@@ -353,7 +369,7 @@ function combinedPool(){
   });
   return [...map.values()].map(w => {
     const s = getStats(w.c, w.m);
-    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, chapters: w.chapters, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow, srs: getSrs(w.c, w.m) };
+    return { c: w.c, p: w.p, m: w.m, tags: [...w.tags], pos: w.pos, topic: w.topic, chapters: w.chapters, correct: s.correct, wrong: s.wrong, dontknow: s.dontknow, writeCorrect: s.writeCorrect, writeWrong: s.writeWrong, srs: getSrs(w.c, w.m) };
   });
 }
 
@@ -931,13 +947,13 @@ function rateAndAdvance(rating){
   rateFlashcard(w, rating);
   nextFlashcard();
 }
-// writing mode uses a plain correct/wrong mark instead of the char mode's SRS rating — same
-// correct/wrong stat as quiz answers, so a writing-practice pass also feeds "Words you've
-// gotten wrong" / "Mastered words" rather than needing its own separate tracking
+// writing mode uses a plain correct/wrong mark instead of the char mode's SRS rating, tracked
+// in its own writeCorrect/writeWrong fields (see getStats) rather than the quiz correct/wrong
+// fields — recognizing a word in quiz and actually being able to write it are different skills,
+// and conflating them would make a word look "Mastered" from quiz alone even if unwritable
 function rateWritingAndAdvance(correct){
   const w = flashcardPool[flashcardIndex];
-  bumpStat(w.c, w.m, correct ? 'correct' : 'wrong');
-  saveStats();
+  bumpStat(w.c, w.m, correct ? 'writeCorrect' : 'writeWrong');
   nextFlashcard();
 }
 document.getElementById('flashcardCard').onclick = revealFlashcard;
@@ -1167,6 +1183,7 @@ function renderProgress(){
   document.getElementById('progressDontKnowCount').textContent = pool.filter(w => w.dontknow > 0).length;
   document.getElementById('progressMasteredCount').textContent = pool.filter(w => w.correct > 0).length;
   document.getElementById('progressFlashcardCount').textContent = flashcardStudiedPool().length;
+  document.getElementById('progressWritingCount').textContent = writingPracticePool().length;
   document.getElementById('resetProgressBtn').textContent = progressTags.size === 0
     ? 'Reset all progress'
     : `Reset progress for ${[...progressTags].join(', ')}`;
@@ -1182,13 +1199,16 @@ function listSortIndex(tags){
   const idx = LIST_SORT_ORDER.indexOf(primaryTag(tags));
   return idx === -1 ? LIST_SORT_ORDER.length : idx;
 }
-function sortProgressWords(words, field){
+// percentFields lets the writing-practice screen sort "By %" using writeCorrect/writeWrong
+// instead of the quiz correct/wrong fields — defaults to quiz fields for the other 3 screens
+function sortProgressWords(words, field, percentFields){
+  const [okField, badField] = percentFields || ['correct', 'wrong'];
   const sorted = [...words];
   if (progressSortMode === 'percent') {
     sorted.sort((a, b) => {
-      const seenA = a.correct + a.wrong, seenB = b.correct + b.wrong;
-      const accA = seenA > 0 ? a.correct / seenA : -1;
-      const accB = seenB > 0 ? b.correct / seenB : -1;
+      const seenA = a[okField] + a[badField], seenB = b[okField] + b[badField];
+      const accA = seenA > 0 ? a[okField] / seenA : -1;
+      const accB = seenB > 0 ? b[okField] / seenB : -1;
       return accA - accB;
     });
   } else {
@@ -1292,6 +1312,56 @@ function renderProgressMastered(){
   practiceBtn.onclick = () => startPracticeRound(masteredWords);
 }
 
+// words with at least one writing-mode rating — separate from progressPool()'s quiz-derived
+// screens (Wrong/DontKnow/Mastered), since writeCorrect/writeWrong track a different skill
+function writingPracticePool(){
+  return progressPool().filter(w => w.writeCorrect > 0 || w.writeWrong > 0);
+}
+function buildWritingProgressRow(w, onCleared){
+  const badges = w.tags.map(badgeHTML).join(' ');
+  const seen = w.writeCorrect + w.writeWrong;
+  const acc = seen > 0 ? Math.round(100 * w.writeCorrect / seen) : null;
+  const row = document.createElement('div');
+  row.className = 'word-row clickable';
+  row.innerHTML = `
+    <span class="char">${w.c}</span>
+    <span class="pinyin">${spacedPinyin(w.p)}</span>
+    <span class="meaning">${w.m}</span>
+    <span class="row-meta">
+      <span class="tags">${badges}</span>
+      <span class="acc">${acc !== null ? acc + '%' : 'new'}</span>
+      <button class="del-btn" aria-label="Clear">✕</button>
+    </span>
+  `;
+  row.querySelector('.del-btn').onclick = (e) => {
+    e.stopPropagation();
+    clearWordWriting(w.c, w.m);
+    if (onCleared) onCleared();
+  };
+  row.onclick = (e) => {
+    if (e.target.closest('.del-btn')) return;
+    showWordDetail(w, 'progressWriting');
+  };
+  return row;
+}
+function renderProgressWriting(){
+  renderProgressFilterRow('writingFilterRow', renderProgressWriting);
+  renderProgressSortRow('writingSortRow', renderProgressWriting);
+  const writingWords = sortProgressWords(writingPracticePool(), 'writeCorrect', ['writeCorrect', 'writeWrong']);
+  applyWordListView('writingList', 'writingGrid', 'writingViewListBtn', 'writingViewGridBtn');
+  const emptyState = writingWords.length === 0
+    ? '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words practiced with Write mode yet.</div>' : null;
+  renderListOrGrid(writingWords, emptyState, 'writingList', 'writingGrid', 'progressWriting',
+    w => buildWritingProgressRow(w, renderProgressWriting));
+  document.getElementById('resetWritingBtn').classList.toggle('hidden', writingWords.length === 0);
+  // routes into a flashcard session pinned to Write mode, regardless of whatever the Learning
+  // Mode picker's mode toggle is currently set to — matches "practice exactly this list" intent
+  const practiceBtn = document.getElementById('practiceWritingBtn');
+  practiceBtn.classList.toggle('hidden', writingWords.length === 0);
+  practiceBtn.textContent = `▶ Practice these words (${writingWords.length})`;
+  practiceBtn.onclick = () => { flashcardMode = 'writing'; startFlashcards(writingWords); };
+}
+
 // this list filters by memory level (New/Learning/.../Expert) instead of by word list — the
 // other 3 lists' progressTags filter doesn't apply here
 let progressSrsLevels = new Set();
@@ -1386,10 +1456,17 @@ document.getElementById('resetFlashcardProgressBtn').onclick = () => {
   flashcardStudiedPool().forEach(w => clearWordSrs(w.c, w.m));
   renderProgressFlashcard();
 };
+document.getElementById('resetWritingBtn').onclick = () => {
+  const scopeLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
+  const ok = confirm(`Clear writing-practice progress for ${scopeLabel}? This can't be undone.`);
+  if (!ok) return;
+  writingPracticePool().forEach(w => clearWordWriting(w.c, w.m));
+  renderProgressWriting();
+};
 
 document.getElementById('resetProgressBtn').onclick = () => {
   const scopeLabel = progressTags.size === 0 ? 'all lists' : [...progressTags].join(', ');
-  const ok = confirm(`Reset quiz progress for ${scopeLabel}? This clears correct/wrong/"don't know" history for those words. This can't be undone.`);
+  const ok = confirm(`Reset quiz progress for ${scopeLabel}? This clears correct/wrong/"don't know" history and writing-practice stats for those words. This can't be undone.`);
   if (!ok) return;
   progressPool().forEach(w => { delete statsMap[statKey(w.c, w.m)]; });
   saveStats();
@@ -1897,7 +1974,7 @@ document.getElementById('startBtn').onclick = () => {
 document.getElementById('resumeBtn').onclick = () => showScreen('quiz');
 
 /* ---------- navigation ---------- */
-const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'chapterProgress', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'progressFlashcard', 'addWord', 'wordDetail'];
+const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'chapterProgress', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'progressFlashcard', 'progressWriting', 'addWord', 'wordDetail'];
 function showScreen(name){
   SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
   screen = name;
@@ -1917,6 +1994,7 @@ function showScreen(name){
   if (name === 'progressDontKnow') renderProgressDontKnow();
   if (name === 'progressMastered') renderProgressMastered();
   if (name === 'progressFlashcard') renderProgressFlashcard();
+  if (name === 'progressWriting') renderProgressWriting();
   if (name === 'addWord') { renderAddWordLevelOptions(); renderAddWordTopicOptions(); renderAddWordPosOptions(); }
   if (name === 'wordDetail') renderWordDetail();
 }
@@ -1947,6 +2025,12 @@ function renderWordDetail(){
   document.getElementById('detailCorrect').textContent = s.correct;
   document.getElementById('detailWrong').textContent = s.wrong;
   document.getElementById('detailAccuracy').textContent = acc !== null ? acc + '%' : 'No attempts yet';
+
+  const writeSeen = s.writeCorrect + s.writeWrong;
+  const writeAcc = writeSeen > 0 ? Math.round(100 * s.writeCorrect / writeSeen) : null;
+  document.getElementById('detailWriteCorrect').textContent = s.writeCorrect;
+  document.getElementById('detailWriteWrong').textContent = s.writeWrong;
+  document.getElementById('detailWriteAccuracy').textContent = writeAcc !== null ? writeAcc + '%' : 'Not practiced yet';
 
   const srs = getSrs(w.c, w.m);
   const srsDueRow = document.getElementById('detailSrsDueRow');
@@ -1990,6 +2074,8 @@ document.getElementById('masteredViewListBtn').onclick = () => setWordListView('
 document.getElementById('masteredViewGridBtn').onclick = () => setWordListView('grid', renderProgressMastered);
 document.getElementById('flashcardViewListBtn').onclick = () => setWordListView('list', renderProgressFlashcard);
 document.getElementById('flashcardViewGridBtn').onclick = () => setWordListView('grid', renderProgressFlashcard);
+document.getElementById('writingViewListBtn').onclick = () => setWordListView('list', renderProgressWriting);
+document.getElementById('writingViewGridBtn').onclick = () => setWordListView('grid', renderProgressWriting);
 document.getElementById('openChapterProgressBtn').onclick = () => showScreen('chapterProgress');
 document.getElementById('chapterProgressBackBtn').onclick = () => showScreen('settings');
 document.getElementById('homeProgressBtn').onclick = () => showScreen('myProgress');
@@ -2006,6 +2092,8 @@ document.getElementById('openProgressMasteredBtn').onclick = () => showScreen('p
 document.getElementById('progressMasteredBackBtn').onclick = () => showScreen('myProgress');
 document.getElementById('openProgressFlashcardBtn').onclick = () => showScreen('progressFlashcard');
 document.getElementById('progressFlashcardBackBtn').onclick = () => showScreen('myProgress');
+document.getElementById('openProgressWritingBtn').onclick = () => showScreen('progressWriting');
+document.getElementById('progressWritingBackBtn').onclick = () => showScreen('myProgress');
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDetailBackBtn').onclick = () => showScreen(screenBeforeWordDetail);
