@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=91">
+<link rel="stylesheet" href="style.css?v=92">
 </head>
 <body>
   <div class="app">
@@ -117,6 +117,7 @@
           <p class="detail-pinyin" id="flashcardPinyin"></p>
           <p class="detail-meaning" id="flashcardMeaning"></p>
         </div>
+        <div class="stroke-anim-container hidden" id="flashcardStrokeAnim"></div>
       </div>
       <p class="flashcard-hint" id="flashcardRevealHint">Tap the card to reveal the answer</p>
 
@@ -304,6 +305,9 @@
         <p class="detail-pinyin" id="detailPinyin"></p>
         <p class="detail-meaning" id="detailMeaning"></p>
       </div>
+
+      <button class="outline-btn stroke-anim-btn" id="detailStrokeBtn" style="margin-top:14px;">✍️ Show stroke order</button>
+      <div class="stroke-anim-container hidden" id="detailStrokeAnim"></div>
 
       <div class="detail-meta-list">
         <div class="detail-meta-row"><span class="detail-meta-label">Topic</span><span class="detail-meta-value" id="detailTopic">—</span></div>
@@ -504,7 +508,7 @@
 
   </div>
 
-  <script src="data.js?v=91"></script>
-  <script src="script.js?v=91"></script>
+  <script src="data.js?v=92"></script>
+  <script src="script.js?v=92"></script>
 </body>
 </html>

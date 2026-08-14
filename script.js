@@ -19,6 +19,58 @@ const APP_BUILD = (() => {
   } catch (e) { return '?'; }
 })();
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, HSK5: FULL_HSK5, HSK6: FULL_HSK6, ES1: FULL_ES1, ES2: FULL_ES2 };
+
+/* ---------- stroke-order animation (HanziWriter, loaded lazily from a CDN) ---------- */
+// Not a static <script> tag in index.html — loaded on demand only when the feature is first
+// used (Word Detail's "Show stroke order" button, or a Writing-mode flashcard reveal), so
+// users who never touch it pay no load cost, and a failure (offline, CDN down) is scoped to
+// just that moment rather than the whole app's boot sequence.
+let hanziWriterLoadPromise = null;
+function loadHanziWriter(){
+  if (window.HanziWriter) return Promise.resolve(true);
+  if (hanziWriterLoadPromise) return hanziWriterLoadPromise;
+  hanziWriterLoadPromise = new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/hanzi-writer@3/dist/hanzi-writer.min.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false); // offline/CDN down — never rejects, caller just checks the boolean
+    document.head.appendChild(script);
+  });
+  return hanziWriterLoadPromise;
+}
+// Renders one HanziWriter instance per character in `word`, side by side (the container is a
+// flex-wrap row — see .stroke-anim-container in style.css). `container` is cleared on every
+// call since it's reused across different words/cards; never throws — offline, CDN-down, or a
+// single character's stroke data 404ing all degrade to "just don't show that bit", never a
+// broken screen. HanziWriter's default charDataLoader fetches stroke data per-character from
+// jsdelivr on its own, no extra config needed.
+function renderStrokeAnimation(container, word){
+  container.innerHTML = '';
+  const myToken = (container._hwToken = (container._hwToken || 0) + 1); // guards rapid re-invocation (double clicks, fast card advances)
+  loadHanziWriter().then((ok) => {
+    if (container._hwToken !== myToken) return; // superseded by a newer call — drop this stale result
+    if (!ok || !window.HanziWriter) { container.classList.add('hidden'); return; }
+    container.classList.remove('hidden');
+    const style = getComputedStyle(document.documentElement);
+    const strokeColor = style.getPropertyValue('--text-primary').trim() || '#0f172a';
+    const outlineColor = style.getPropertyValue('--border').trim() || '#e2e8f0';
+    const highlightColor = style.getPropertyValue('--accent-solid').trim() || '#4f46e5';
+    Array.from(word).forEach((ch) => {
+      const box = document.createElement('div');
+      box.className = 'stroke-anim-char';
+      container.appendChild(box);
+      try {
+        HanziWriter.create(box, ch, {
+          width: 90, height: 90, padding: 5,
+          strokeColor, radicalColor: highlightColor, outlineColor,
+          strokeAnimationSpeed: 1, delayBetweenStrokes: 300, strokeFadeDuration: 200,
+          showOutline: true,
+          onLoadCharDataError: () => { box.classList.add('stroke-anim-missing'); },
+        }).animateCharacter();
+      } catch (e) { box.classList.add('stroke-anim-missing'); }
+    });
+  });
+}
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
@@ -916,6 +968,15 @@ function renderFlashcard(){
   hint.classList.toggle('hidden', flashcardRevealed);
   rateRow.classList.toggle('hidden', writing || !flashcardRevealed);
   writingRateRow.classList.toggle('hidden', !writing || !flashcardRevealed);
+  // hides+clears whenever not (writing && revealed) — covers both "not writing mode" and "not
+  // revealed yet"; the actual show+animate happens in revealFlashcard()'s autoplay below, since
+  // that's the one explicit user action that should trigger it, not every render pass
+  const strokeAnim = document.getElementById('flashcardStrokeAnim');
+  if (!writing || !flashcardRevealed) {
+    strokeAnim.classList.add('hidden');
+    strokeAnim.innerHTML = '';
+    strokeAnim._hwToken = (strokeAnim._hwToken || 0) + 1;
+  }
   document.getElementById('flashcardPositionText').textContent = `${flashcardIndex + 1} / ${flashcardPool.length}`;
 }
 function revealFlashcard(){
@@ -924,6 +985,13 @@ function revealFlashcard(){
   saveFlashcardSession();
   renderFlashcard();
   if (autoPlaySound) speak(flashcardPool[flashcardIndex].c);
+  // writing mode already gates the answer behind this one explicit reveal tap, so the stroke
+  // animation autoplays here rather than needing its own button
+  if (flashcardMode === 'writing') {
+    const strokeAnim = document.getElementById('flashcardStrokeAnim');
+    strokeAnim.classList.remove('hidden');
+    renderStrokeAnimation(strokeAnim, flashcardPool[flashcardIndex].c);
+  }
 }
 function nextFlashcard(){
   flashcardIndex++;
@@ -2007,6 +2075,21 @@ function renderWordDetail(){
   document.getElementById('detailSpeakBtn').onclick = () => speak(w.c);
   const tv = tintOf(primaryTag(w.tags));
   document.getElementById('detailCard').style.background = `var(${tv.bg})`;
+
+  // stroke animation resets fully on every entry to this screen (it's re-run for every word),
+  // and only shows on an explicit click — not autoplay here, unlike the flashcard reveal
+  const strokeBtn = document.getElementById('detailStrokeBtn');
+  const strokeContainer = document.getElementById('detailStrokeAnim');
+  strokeContainer.classList.add('hidden');
+  strokeContainer.innerHTML = '';
+  strokeContainer._hwToken = (strokeContainer._hwToken || 0) + 1; // invalidate any in-flight render from the previous word
+  strokeBtn.classList.remove('hidden');
+  strokeBtn.textContent = '✍️ Show stroke order';
+  strokeBtn.onclick = () => {
+    strokeContainer.classList.remove('hidden');
+    strokeBtn.classList.add('hidden'); // one-shot per word; re-shown next time this screen opens
+    renderStrokeAnimation(strokeContainer, w.c);
+  };
 
   // lifetime stats for this word, fetched fresh (not from whatever fields the calling
   // screen's row happened to carry) so they're always accurate

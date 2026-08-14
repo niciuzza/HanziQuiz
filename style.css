@@ -307,6 +307,28 @@ input::placeholder{ color:var(--text-muted); }
 }
 .outline-btn:hover{ background:var(--surface-1); }
 
+/* ---------- stroke-order animation (HanziWriter) ---------- */
+.stroke-anim-container{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:center;
+  margin-top:14px;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  background:var(--surface-2);
+}
+.stroke-anim-char{
+  width:90px;
+  height:90px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:var(--surface-1);
+  flex:0 0 auto;
+}
+.stroke-anim-char.stroke-anim-missing{ opacity:.35; }
+
 /* ---------- tag / round-size chip rows (shared) ---------- */
 .tag-filter-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
 .tag-filter-row button{ padding:7px 16px; border-radius:20px; font-size:13px; font-weight:600; }
