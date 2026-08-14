@@ -19,6 +19,97 @@ const APP_BUILD = (() => {
   } catch (e) { return '?'; }
 })();
 const BUILTIN_LISTS = { HSK1: FULL_HSK1, HSK2: FULL_HSK2, HSK3: FULL_HSK3, HSK4: FULL_HSK4, HSK5: FULL_HSK5, HSK6: FULL_HSK6, ES1: FULL_ES1, ES2: FULL_ES2 };
+
+/* ---------- stroke-order animation (HanziWriter, loaded lazily from a CDN) ---------- */
+// Not a static <script> tag in index.html — loaded on demand only when the feature is first
+// used (Word Detail's "Show stroke order" button, or a Writing-mode flashcard reveal), so
+// users who never touch it pay no load cost, and a failure (offline, CDN down) is scoped to
+// just that moment rather than the whole app's boot sequence.
+let hanziWriterLoadPromise = null;
+function loadHanziWriter(){
+  if (window.HanziWriter) return Promise.resolve(true);
+  if (hanziWriterLoadPromise) return hanziWriterLoadPromise;
+  hanziWriterLoadPromise = new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/hanzi-writer@3/dist/hanzi-writer.min.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false); // offline/CDN down — never rejects, caller just checks the boolean
+    document.head.appendChild(script);
+  });
+  return hanziWriterLoadPromise;
+}
+// shared 1x/2x preference for the stroke-drawing speed only — doesn't affect the pause between
+// characters or the pause before the whole word loops again, just how fast each stroke draws
+let strokeAnimSpeed = 1;
+// Renders one HanziWriter instance per character in `word`, side by side (the container is a
+// flex-wrap row — see .stroke-anim-container in style.css), and plays them one at a time —
+// character 1 finishes before character 2 starts, like actually writing the word — then loops
+// back to the first character after a pause. `container` is cleared on every call since it's
+// reused across different words/cards (also reused for a manual replay of the same word); never
+// throws — offline, CDN-down, or a single character's stroke data 404ing all degrade to "just
+// skip that one", never a hung sequence or a broken screen. HanziWriter's default
+// charDataLoader fetches stroke data per-character from jsdelivr on its own, no extra config
+// needed. `onDone(success)`, if given, fires once loading resolves either way, so a caller can
+// show/hide its own surrounding UI (e.g. replay/speed controls) in step with the animation
+// itself actually being available.
+function renderStrokeAnimation(container, word, onDone){
+  container.innerHTML = '';
+  container._word = word; // remembered so a replay button can re-invoke this same render later
+  const myToken = (container._hwToken = (container._hwToken || 0) + 1); // guards rapid re-invocation (double clicks, fast card advances)
+  loadHanziWriter().then((ok) => {
+    if (container._hwToken !== myToken) return; // superseded by a newer call — drop this stale result
+    if (!ok || !window.HanziWriter) { container.classList.add('hidden'); if (onDone) onDone(false); return; }
+    container.classList.remove('hidden');
+    const style = getComputedStyle(document.documentElement);
+    const strokeColor = style.getPropertyValue('--text-primary').trim() || '#0f172a';
+    const outlineColor = style.getPropertyValue('--border').trim() || '#e2e8f0';
+    const highlightColor = style.getPropertyValue('--accent-solid').trim() || '#4f46e5';
+    const entries = Array.from(word).map((ch) => {
+      const box = document.createElement('div');
+      box.className = 'stroke-anim-char';
+      container.appendChild(box);
+      const entry = { writer: null, failed: false };
+      try {
+        entry.writer = HanziWriter.create(box, ch, {
+          width: 90, height: 90, padding: 5,
+          strokeColor, radicalColor: highlightColor, outlineColor,
+          strokeAnimationSpeed: strokeAnimSpeed, delayBetweenStrokes: 300, strokeFadeDuration: 200,
+          showOutline: true,
+          onLoadCharDataError: () => { box.classList.add('stroke-anim-missing'); entry.failed = true; },
+        });
+      } catch (e) { box.classList.add('stroke-anim-missing'); entry.failed = true; }
+      return entry;
+    });
+    // plays entries[i] to completion, then entries[i+1], and so on; a char whose data failed
+    // to load is skipped rather than animated (never fires, would otherwise stall the sequence
+    // forever); once every character has played, pause and restart from the first
+    function playFrom(i){
+      if (container._hwToken !== myToken) return; // this container got reused for a different word — stop
+      if (i >= entries.length) { setTimeout(() => playFrom(0), 1500); return; }
+      const entry = entries[i];
+      if (!entry.writer || entry.failed) { playFrom(i + 1); return; }
+      entry.writer.animateCharacter({ onComplete: () => playFrom(i + 1) });
+    }
+    playFrom(0);
+    if (onDone) onDone(true);
+  });
+}
+// keeps every speed toggle in the app (Word Detail + flashcard) in sync, since strokeAnimSpeed
+// is one shared preference rather than per-screen state
+function syncStrokeSpeedButtons(){
+  document.querySelectorAll('.stroke-speed-btn').forEach((btn) => {
+    btn.classList.toggle('active', Number(btn.dataset.speed) === strokeAnimSpeed);
+  });
+}
+function setStrokeAnimSpeed(speed){
+  strokeAnimSpeed = speed;
+  syncStrokeSpeedButtons();
+  // re-render whichever animation(s) are currently visible so the new speed takes effect
+  // immediately instead of waiting for the next natural re-render
+  [document.getElementById('detailStrokeAnim'), document.getElementById('flashcardStrokeAnim')].forEach((c) => {
+    if (c && c._word && !c.classList.contains('hidden')) renderStrokeAnimation(c, c._word);
+  });
+}
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
@@ -901,8 +992,9 @@ function renderFlashcard(){
   document.getElementById('flashcardMeaning').textContent = w.m;
   document.getElementById('flashcardSpeakBtn').onclick = (e) => { e.stopPropagation(); speak(w.c); };
   // 'writing' mode flips which side is the front: meaning+pinyin (flashcardRevealInfo) is
-  // always visible instead of reveal-gated, and the hanzi (flashcardChar) becomes the
-  // reveal-gated answer instead of always-visible — see flashcardMode
+  // always visible instead of reveal-gated, and the hanzi is the reveal-gated answer — but in
+  // writing mode the plain-text hanzi (flashcardChar) is never shown at all, replaced in place
+  // by the stroke animation once revealed (see flashcardStrokeAnim below) — see flashcardMode
   const writing = flashcardMode === 'writing';
   const disambigEl = document.getElementById('flashcardDisambig');
   const example = findDisambiguationExample(w);
@@ -911,11 +1003,26 @@ function renderFlashcard(){
   // would hand over the answer before the reveal, so gate it behind flashcardRevealed too
   disambigEl.classList.toggle('hidden', !example || (writing && !flashcardRevealed));
   if (example) disambigEl.innerHTML = `as in <b>${example.c}</b>`;
-  document.getElementById('flashcardChar').classList.toggle('hidden', writing && !flashcardRevealed);
+  document.getElementById('flashcardChar').classList.toggle('hidden', writing);
   document.getElementById('flashcardRevealInfo').classList.toggle('hidden', writing ? false : !flashcardRevealed);
   hint.classList.toggle('hidden', flashcardRevealed);
   rateRow.classList.toggle('hidden', writing || !flashcardRevealed);
   writingRateRow.classList.toggle('hidden', !writing || !flashcardRevealed);
+  // the character-font picker only makes sense where the plain-text hanzi is actually shown —
+  // hidden in writing mode entirely, since that mode never shows the plain hanzi at all
+  document.getElementById('flashcardFontPicker').classList.toggle('hidden', writing);
+  // hides+clears whenever not (writing && revealed) — covers both "not writing mode" and "not
+  // revealed yet"; the actual show+animate happens in revealFlashcard()'s autoplay below, since
+  // that's the one explicit user action that should trigger it, not every render pass. The
+  // replay/speed controls go along with it — they're meaningless without a playing animation.
+  const strokeAnim = document.getElementById('flashcardStrokeAnim');
+  const strokeControls = document.getElementById('flashcardStrokeControls');
+  if (!writing || !flashcardRevealed) {
+    strokeAnim.classList.add('hidden');
+    strokeAnim.innerHTML = '';
+    strokeAnim._hwToken = (strokeAnim._hwToken || 0) + 1;
+    strokeControls.classList.add('hidden');
+  }
   document.getElementById('flashcardPositionText').textContent = `${flashcardIndex + 1} / ${flashcardPool.length}`;
 }
 function revealFlashcard(){
@@ -924,6 +1031,18 @@ function revealFlashcard(){
   saveFlashcardSession();
   renderFlashcard();
   if (autoPlaySound) speak(flashcardPool[flashcardIndex].c);
+  // writing mode already gates the answer behind this one explicit reveal tap, so the stroke
+  // animation autoplays here rather than needing its own button; the replay/speed controls
+  // only appear once the animation actually loads successfully (see the onDone callback) —
+  // no point offering to replay or speed up something that's offline/unavailable
+  if (flashcardMode === 'writing') {
+    const strokeAnim = document.getElementById('flashcardStrokeAnim');
+    const strokeControls = document.getElementById('flashcardStrokeControls');
+    strokeAnim.classList.remove('hidden');
+    renderStrokeAnimation(strokeAnim, flashcardPool[flashcardIndex].c, (ok) => {
+      strokeControls.classList.toggle('hidden', !ok);
+    });
+  }
 }
 function nextFlashcard(){
   flashcardIndex++;
@@ -2008,6 +2127,24 @@ function renderWordDetail(){
   const tv = tintOf(primaryTag(w.tags));
   document.getElementById('detailCard').style.background = `var(${tv.bg})`;
 
+  // stroke animation shows in its own boxed section below the card, leaving the plain-text
+  // character up top untouched — unlike the Write-mode flashcard, which replaces the plain
+  // character in place since it never shows it at all. Resets fully on every entry to this
+  // screen since it's re-run for every word. Only shows on an explicit click, not autoplay.
+  const strokeBtn = document.getElementById('detailStrokeBtn');
+  const strokeWrap = document.getElementById('detailStrokeWrap');
+  const strokeContainer = document.getElementById('detailStrokeAnim');
+  strokeWrap.classList.add('hidden');
+  strokeContainer.innerHTML = '';
+  strokeContainer._word = null;
+  strokeContainer._hwToken = (strokeContainer._hwToken || 0) + 1; // invalidate any in-flight render from the previous word
+  strokeBtn.classList.remove('hidden');
+  strokeBtn.textContent = '✍️ Show stroke order';
+  strokeBtn.onclick = () => {
+    strokeBtn.classList.add('hidden'); // one-shot per word; re-shown next time this screen opens
+    renderStrokeAnimation(strokeContainer, w.c, (ok) => { strokeWrap.classList.toggle('hidden', !ok); });
+  };
+
   // lifetime stats for this word, fetched fresh (not from whatever fields the calling
   // screen's row happened to carry) so they're always accurate
   const s = getStats(w.c, w.m);
@@ -2088,6 +2225,19 @@ document.getElementById('progressWritingBackBtn').onclick = () => showScreen('my
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('wordDetailBackBtn').onclick = () => showScreen(screenBeforeWordDetail);
+document.getElementById('detailStrokeReplayBtn').onclick = () => {
+  const c = document.getElementById('detailStrokeAnim');
+  if (c._word) renderStrokeAnimation(c, c._word);
+};
+document.getElementById('detailSpeed1xBtn').onclick = () => setStrokeAnimSpeed(1);
+document.getElementById('detailSpeed2xBtn').onclick = () => setStrokeAnimSpeed(2);
+document.getElementById('flashcardStrokeReplayBtn').onclick = (e) => {
+  e.stopPropagation();
+  const c = document.getElementById('flashcardStrokeAnim');
+  if (c._word) renderStrokeAnimation(c, c._word);
+};
+document.getElementById('flashcardSpeed1xBtn').onclick = (e) => { e.stopPropagation(); setStrokeAnimSpeed(1); };
+document.getElementById('flashcardSpeed2xBtn').onclick = (e) => { e.stopPropagation(); setStrokeAnimSpeed(2); };
 document.getElementById('darkModeToggle').onclick = toggleDarkMode;
 document.getElementById('autoPlaySoundToggle').onclick = toggleAutoPlaySound;
 document.getElementById('hardModeToggle').onclick = toggleHardMode;

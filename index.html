@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=91">
+<link rel="stylesheet" href="style.css?v=96">
 </head>
 <body>
   <div class="app">
@@ -101,7 +101,7 @@
       <div class="question-box detail-card flashcard-card" id="flashcardCard">
         <div class="q-tags" id="flashcardTags"></div>
         <div class="card-actions-top">
-          <div class="hanzi-font-picker">
+          <div class="hanzi-font-picker" id="flashcardFontPicker">
             <button class="hanzi-font-trigger" id="flashcardFontBtn" aria-label="Change character font">我</button>
             <div class="hanzi-font-menu hidden" id="flashcardFontMenu">
               <button class="hanzi-font-option font-serif" data-font="serif">我</button>
@@ -109,9 +109,17 @@
               <button class="hanzi-font-option font-hand" data-font="hand">我</button>
             </div>
           </div>
+          <div class="stroke-anim-controls hidden" id="flashcardStrokeControls">
+            <button class="stroke-control-btn" id="flashcardStrokeReplayBtn" aria-label="Replay animation">↻</button>
+            <div class="stroke-speed-toggle">
+              <button class="stroke-speed-btn active" id="flashcardSpeed1xBtn" data-speed="1">1x</button>
+              <button class="stroke-speed-btn" id="flashcardSpeed2xBtn" data-speed="2">2x</button>
+            </div>
+          </div>
           <button class="detail-speak-btn" id="flashcardSpeakBtn" aria-label="play audio">🔊</button>
         </div>
         <div class="q-main" id="flashcardChar">-</div>
+        <div class="stroke-anim-container hidden" id="flashcardStrokeAnim"></div>
         <p class="flashcard-disambig hidden" id="flashcardDisambig"></p>
         <div id="flashcardRevealInfo" class="hidden">
           <p class="detail-pinyin" id="flashcardPinyin"></p>
@@ -303,6 +311,18 @@
         <div class="q-main" id="detailChar">-</div>
         <p class="detail-pinyin" id="detailPinyin"></p>
         <p class="detail-meaning" id="detailMeaning"></p>
+      </div>
+
+      <button class="outline-btn stroke-anim-btn" id="detailStrokeBtn" style="margin-top:14px;">✍️ Show stroke order</button>
+      <div class="stroke-anim-wrap hidden" id="detailStrokeWrap">
+        <div class="stroke-anim-controls">
+          <button class="stroke-control-btn" id="detailStrokeReplayBtn" aria-label="Replay animation">↻</button>
+          <div class="stroke-speed-toggle">
+            <button class="stroke-speed-btn active" id="detailSpeed1xBtn" data-speed="1">1x</button>
+            <button class="stroke-speed-btn" id="detailSpeed2xBtn" data-speed="2">2x</button>
+          </div>
+        </div>
+        <div class="stroke-anim-container stroke-anim-boxed" id="detailStrokeAnim"></div>
       </div>
 
       <div class="detail-meta-list">
@@ -504,7 +524,7 @@
 
   </div>
 
-  <script src="data.js?v=91"></script>
-  <script src="script.js?v=91"></script>
+  <script src="data.js?v=96"></script>
+  <script src="script.js?v=96"></script>
 </body>
 </html>
