@@ -53,6 +53,11 @@ let chapterProgress = {}; // { [listTag]: chapterNumber } — see CHAPTER_PROGRE
 let flashcardPool = [];
 let flashcardIndex = 0;
 let flashcardRevealed = false;
+// 'char' (default): card shows the hanzi first, reveals pinyin+meaning — for recognizing a
+// character you already know. 'writing': card shows meaning+pinyin first (with audio), reveals
+// the hanzi as the answer — for writing-practice, where you write the character on paper before
+// checking. Session-only, like learningChapters/learningCumulative — not persisted to localStorage.
+let flashcardMode = 'char';
 // Ebbinghaus-style review schedule, day-level only (no intraday steps like 5min/30min/12hr —
 // this is a local app with no notifications to pull someone back that soon, so the schedule
 // starts at "1 day" and stretches out from there as a word keeps being recalled instantly).
@@ -768,6 +773,20 @@ function renderLearningHome(){
   document.getElementById('learningStartBtn').disabled = pool.length === 0;
   document.getElementById('learningQuizBtn').disabled = pool.length === 0;
   document.getElementById('learningReviewDueBtn').disabled = duePool.length === 0;
+  renderFlashcardModeRow();
+}
+// which side of the card shows first — see flashcardMode; affects Start flashcards and Review
+// due words alike, since both just hand a pool to startFlashcards()
+function renderFlashcardModeRow(){
+  const row = document.getElementById('flashcardModeRow');
+  row.innerHTML = '';
+  [['char', 'Read'], ['writing', 'Write']].forEach(([mode, label]) => {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.className = flashcardMode === mode ? 'active' : '';
+    btn.onclick = () => { flashcardMode = mode; renderFlashcardModeRow(); };
+    row.appendChild(btn);
+  });
 }
 document.getElementById('learningChapterSelect').onchange = (e) => {
   const v = e.target.value;
@@ -797,6 +816,7 @@ function saveFlashcardSession(){
       index: flashcardIndex,
       revealed: flashcardRevealed,
       learningList,
+      mode: flashcardMode,
     }));
   } catch (e) {}
 }
@@ -814,6 +834,7 @@ function loadFlashcardSession(){
     flashcardIndex = Math.min(s.index || 0, pool.length - 1);
     flashcardRevealed = !!s.revealed;
     if (s.learningList) learningList = s.learningList;
+    if (s.mode === 'char' || s.mode === 'writing') flashcardMode = s.mode;
     return true;
   } catch (e) {
     return false;
@@ -831,11 +852,13 @@ function renderFlashcard(){
   const card = document.getElementById('flashcardCard');
   const doneBox = document.getElementById('flashcardDone');
   const rateRow = document.getElementById('flashcardRateRow');
+  const writingRateRow = document.getElementById('flashcardWritingRateRow');
   const hint = document.getElementById('flashcardRevealHint');
   if (flashcardIndex >= flashcardPool.length) {
     card.classList.add('hidden');
     hint.classList.add('hidden');
     rateRow.classList.add('hidden');
+    writingRateRow.classList.add('hidden');
     doneBox.classList.remove('hidden');
     document.getElementById('flashcardDoneText').textContent =
       `You've reviewed all ${flashcardPool.length} word${flashcardPool.length === 1 ? '' : 's'} in this selection.`;
@@ -870,13 +893,22 @@ function renderFlashcard(){
   document.getElementById('flashcardPinyin').textContent = spacedPinyin(w.p);
   document.getElementById('flashcardMeaning').textContent = w.m;
   document.getElementById('flashcardSpeakBtn').onclick = (e) => { e.stopPropagation(); speak(w.c); };
+  // 'writing' mode flips which side is the front: meaning+pinyin (flashcardRevealInfo) is
+  // always visible instead of reveal-gated, and the hanzi (flashcardChar) becomes the
+  // reveal-gated answer instead of always-visible — see flashcardMode
+  const writing = flashcardMode === 'writing';
   const disambigEl = document.getElementById('flashcardDisambig');
   const example = findDisambiguationExample(w);
-  disambigEl.classList.toggle('hidden', !example);
+  // the example embeds the target hanzi itself (e.g. "as in 长度" for 长) — fine to show
+  // up front in char mode where the hanzi is already visible, but in writing mode that
+  // would hand over the answer before the reveal, so gate it behind flashcardRevealed too
+  disambigEl.classList.toggle('hidden', !example || (writing && !flashcardRevealed));
   if (example) disambigEl.innerHTML = `as in <b>${example.c}</b>`;
-  document.getElementById('flashcardRevealInfo').classList.toggle('hidden', !flashcardRevealed);
+  document.getElementById('flashcardChar').classList.toggle('hidden', writing && !flashcardRevealed);
+  document.getElementById('flashcardRevealInfo').classList.toggle('hidden', writing ? false : !flashcardRevealed);
   hint.classList.toggle('hidden', flashcardRevealed);
-  rateRow.classList.toggle('hidden', !flashcardRevealed);
+  rateRow.classList.toggle('hidden', writing || !flashcardRevealed);
+  writingRateRow.classList.toggle('hidden', !writing || !flashcardRevealed);
   document.getElementById('flashcardPositionText').textContent = `${flashcardIndex + 1} / ${flashcardPool.length}`;
 }
 function revealFlashcard(){
@@ -899,10 +931,21 @@ function rateAndAdvance(rating){
   rateFlashcard(w, rating);
   nextFlashcard();
 }
+// writing mode uses a plain correct/wrong mark instead of the char mode's SRS rating — same
+// correct/wrong stat as quiz answers, so a writing-practice pass also feeds "Words you've
+// gotten wrong" / "Mastered words" rather than needing its own separate tracking
+function rateWritingAndAdvance(correct){
+  const w = flashcardPool[flashcardIndex];
+  bumpStat(w.c, w.m, correct ? 'correct' : 'wrong');
+  saveStats();
+  nextFlashcard();
+}
 document.getElementById('flashcardCard').onclick = revealFlashcard;
 document.getElementById('flashcardRateUnknownBtn').onclick = () => rateAndAdvance('unknown');
 document.getElementById('flashcardRateHesitantBtn').onclick = () => rateAndAdvance('hesitant');
 document.getElementById('flashcardRateInstantBtn').onclick = () => rateAndAdvance('instant');
+document.getElementById('flashcardWritingWrongBtn').onclick = () => rateWritingAndAdvance(false);
+document.getElementById('flashcardWritingCorrectBtn').onclick = () => rateWritingAndAdvance(true);
 document.getElementById('flashcardRestartBtn').onclick = () => startFlashcards(flashcardPool);
 document.getElementById('flashcardBackBtn').onclick = () => showScreen('learningHome');
 document.getElementById('flashcardBackToPickerBtn').onclick = () => showScreen('learningHome');

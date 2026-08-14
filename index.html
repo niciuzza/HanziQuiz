@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=88">
+<link rel="stylesheet" href="style.css?v=89">
 </head>
 <body>
   <div class="app">
@@ -84,6 +84,9 @@
         </div>
       </div>
 
+      <p class="section-label">Practice mode</p>
+      <div class="tag-filter-row" id="flashcardModeRow"></div>
+
       <p class="pool-count" id="learningPoolCount"></p>
       <button id="learningStartBtn" class="primary-btn" disabled>Start flashcards</button>
       <button id="learningReviewDueBtn" class="outline-btn" disabled style="margin-top:10px;">⏰ Review due words</button>
@@ -123,6 +126,10 @@
         <button id="flashcardRateUnknownBtn" class="flashcard-rate-btn rate-unknown">😵 Didn't know</button>
         <button id="flashcardRateHesitantBtn" class="flashcard-rate-btn rate-hesitant">🤔 Hesitated</button>
         <button id="flashcardRateInstantBtn" class="flashcard-rate-btn rate-instant">⚡ Instant</button>
+      </div>
+      <div class="flashcard-rate-row hidden" id="flashcardWritingRateRow">
+        <button id="flashcardWritingWrongBtn" class="flashcard-rate-btn rate-unknown">✗ Got it wrong</button>
+        <button id="flashcardWritingCorrectBtn" class="flashcard-rate-btn rate-instant">✓ Wrote it correctly</button>
       </div>
 
       <div class="flashcard-done hidden" id="flashcardDone">
@@ -469,7 +476,7 @@
 
   </div>
 
-  <script src="data.js?v=88"></script>
-  <script src="script.js?v=88"></script>
+  <script src="data.js?v=89"></script>
+  <script src="script.js?v=89"></script>
 </body>
 </html>
