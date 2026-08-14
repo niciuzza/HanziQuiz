@@ -39,10 +39,12 @@ function loadHanziWriter(){
   return hanziWriterLoadPromise;
 }
 // Renders one HanziWriter instance per character in `word`, side by side (the container is a
-// flex-wrap row — see .stroke-anim-container in style.css). `container` is cleared on every
-// call since it's reused across different words/cards; never throws — offline, CDN-down, or a
-// single character's stroke data 404ing all degrade to "just don't show that bit", never a
-// broken screen. HanziWriter's default charDataLoader fetches stroke data per-character from
+// flex-wrap row — see .stroke-anim-container in style.css), and plays them one at a time —
+// character 1 finishes before character 2 starts, like actually writing the word — then loops
+// back to the first character after a pause. `container` is cleared on every call since it's
+// reused across different words/cards; never throws — offline, CDN-down, or a single
+// character's stroke data 404ing all degrade to "just skip that one", never a hung sequence or
+// a broken screen. HanziWriter's default charDataLoader fetches stroke data per-character from
 // jsdelivr on its own, no extra config needed.
 function renderStrokeAnimation(container, word){
   container.innerHTML = '';
@@ -55,21 +57,33 @@ function renderStrokeAnimation(container, word){
     const strokeColor = style.getPropertyValue('--text-primary').trim() || '#0f172a';
     const outlineColor = style.getPropertyValue('--border').trim() || '#e2e8f0';
     const highlightColor = style.getPropertyValue('--accent-solid').trim() || '#4f46e5';
-    Array.from(word).forEach((ch) => {
+    const entries = Array.from(word).map((ch) => {
       const box = document.createElement('div');
       box.className = 'stroke-anim-char';
       container.appendChild(box);
+      const entry = { writer: null, failed: false };
       try {
-        HanziWriter.create(box, ch, {
+        entry.writer = HanziWriter.create(box, ch, {
           width: 90, height: 90, padding: 5,
           strokeColor, radicalColor: highlightColor, outlineColor,
           strokeAnimationSpeed: 1, delayBetweenStrokes: 300, strokeFadeDuration: 200,
-          delayBetweenLoops: 1500,
           showOutline: true,
-          onLoadCharDataError: () => { box.classList.add('stroke-anim-missing'); },
-        }).loopCharacterAnimation();
-      } catch (e) { box.classList.add('stroke-anim-missing'); }
+          onLoadCharDataError: () => { box.classList.add('stroke-anim-missing'); entry.failed = true; },
+        });
+      } catch (e) { box.classList.add('stroke-anim-missing'); entry.failed = true; }
+      return entry;
     });
+    // plays entries[i] to completion, then entries[i+1], and so on; a char whose data failed
+    // to load is skipped rather than animated (never fires, would otherwise stall the sequence
+    // forever); once every character has played, pause and restart from the first
+    function playFrom(i){
+      if (container._hwToken !== myToken) return; // this container got reused for a different word — stop
+      if (i >= entries.length) { setTimeout(() => playFrom(0), 1500); return; }
+      const entry = entries[i];
+      if (!entry.writer || entry.failed) { playFrom(i + 1); return; }
+      entry.writer.animateCharacter({ onComplete: () => playFrom(i + 1) });
+    }
+    playFrom(0);
   });
 }
 let words = []; // user's own custom words: { c, p, m, tags }
