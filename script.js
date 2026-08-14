@@ -2092,20 +2092,18 @@ function renderWordDetail(){
   const tv = tintOf(primaryTag(w.tags));
   document.getElementById('detailCard').style.background = `var(${tv.bg})`;
 
-  // stroke animation replaces the plain-text character in place (not a separate box below it),
-  // and resets fully on every entry to this screen since it's re-run for every word. Only shows
-  // on an explicit click — not autoplay here, unlike the flashcard reveal.
-  const detailCharEl = document.getElementById('detailChar');
+  // stroke animation shows in its own boxed section below the card, leaving the plain-text
+  // character up top untouched — unlike the Write-mode flashcard, which replaces the plain
+  // character in place since it never shows it at all. Resets fully on every entry to this
+  // screen since it's re-run for every word. Only shows on an explicit click, not autoplay.
   const strokeBtn = document.getElementById('detailStrokeBtn');
   const strokeContainer = document.getElementById('detailStrokeAnim');
-  detailCharEl.classList.remove('hidden');
   strokeContainer.classList.add('hidden');
   strokeContainer.innerHTML = '';
   strokeContainer._hwToken = (strokeContainer._hwToken || 0) + 1; // invalidate any in-flight render from the previous word
   strokeBtn.classList.remove('hidden');
   strokeBtn.textContent = '✍️ Show stroke order';
   strokeBtn.onclick = () => {
-    detailCharEl.classList.add('hidden');
     strokeContainer.classList.remove('hidden');
     strokeBtn.classList.add('hidden'); // one-shot per word; re-shown next time this screen opens
     renderStrokeAnimation(strokeContainer, w.c);

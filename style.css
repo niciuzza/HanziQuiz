@@ -308,9 +308,10 @@ input::placeholder{ color:var(--text-muted); }
 .outline-btn:hover{ background:var(--surface-1); }
 
 /* ---------- stroke-order animation (HanziWriter) ---------- */
-/* sits in place of the plain-text character (see renderWordDetail/renderFlashcard), inside the
-   same tinted card, so no border/background of its own — it should read as "the character,
-   animated" rather than a separate boxed-off section */
+/* base layout shared by both contexts; on Word Detail (.stroke-anim-boxed) it's a standalone
+   card below the word, keeping the plain-text character visible above — on the Write-mode
+   flashcard it's unmodified (no border/background), sitting in place of the plain-text
+   character since that mode never shows the plain hanzi at all, only the animated one */
 .stroke-anim-container{
   display:flex;
   flex-wrap:wrap;
@@ -318,10 +319,24 @@ input::placeholder{ color:var(--text-muted); }
   justify-content:center;
   margin-bottom:10px;
 }
+.stroke-anim-container.stroke-anim-boxed{
+  margin-top:14px;
+  margin-bottom:0;
+  padding:12px;
+  gap:8px;
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  background:var(--surface-2);
+}
 .stroke-anim-char{
   width:90px;
   height:90px;
   flex:0 0 auto;
+}
+.stroke-anim-boxed .stroke-anim-char{
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:var(--surface-1);
 }
 .stroke-anim-char.stroke-anim-missing{ opacity:.35; }
 
