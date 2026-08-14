@@ -789,20 +789,7 @@ function renderLearningHome(){
   document.getElementById('learningStartBtn').disabled = pool.length === 0;
   document.getElementById('learningQuizBtn').disabled = pool.length === 0;
   document.getElementById('learningReviewDueBtn').disabled = duePool.length === 0;
-  renderFlashcardModeRow();
-}
-// which side of the card shows first — see flashcardMode; affects Start flashcards and Review
-// due words alike, since both just hand a pool to startFlashcards()
-function renderFlashcardModeRow(){
-  const row = document.getElementById('flashcardModeRow');
-  row.innerHTML = '';
-  [['char', 'Read'], ['writing', 'Write']].forEach(([mode, label]) => {
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    btn.className = flashcardMode === mode ? 'active' : '';
-    btn.onclick = () => { flashcardMode = mode; renderFlashcardModeRow(); };
-    row.appendChild(btn);
-  });
+  document.getElementById('learningWritingBtn').disabled = pool.length === 0;
 }
 document.getElementById('learningChapterSelect').onchange = (e) => {
   const v = e.target.value;
@@ -814,9 +801,13 @@ document.getElementById('learningCumulativeToggle').onclick = () => {
   learningCumulative = !learningCumulative;
   renderLearningHome();
 };
-document.getElementById('learningStartBtn').onclick = () => startFlashcards();
+// Read mode is the only one with a review schedule (see isDue/rateFlashcard — Write mode's
+// ratings don't touch srsMap at all), so Start flashcards and Review due words both pin to it
+// explicitly rather than depending on whatever flashcardMode was last left at
+document.getElementById('learningStartBtn').onclick = () => { flashcardMode = 'char'; startFlashcards(); };
 document.getElementById('learningQuizBtn').onclick = () => startPracticeRound(learningPool());
-document.getElementById('learningReviewDueBtn').onclick = () => startFlashcards(studiedPoolForList(learningList).filter(isDue));
+document.getElementById('learningReviewDueBtn').onclick = () => { flashcardMode = 'char'; startFlashcards(studiedPoolForList(learningList).filter(isDue)); };
+document.getElementById('learningWritingBtn').onclick = () => { flashcardMode = 'writing'; startFlashcards(); };
 document.getElementById('homeModeLearningBtn').onclick = () => showScreen('learningHome');
 document.getElementById('learningModeQuizBtn').onclick = () => showScreen('home');
 
