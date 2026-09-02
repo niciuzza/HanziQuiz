@@ -308,11 +308,10 @@ input::placeholder{ color:var(--text-muted); }
 .outline-btn:hover{ background:var(--surface-1); }
 
 /* ---------- stroke-order animation (HanziWriter) ---------- */
-/* base layout shared by both contexts; on Word Detail (.stroke-anim-boxed, inside
-   .stroke-anim-wrap) it's a standalone card below the word, keeping the plain-text character
-   visible above — on the Write-mode flashcard it's unmodified (no border/background), sitting
-   in place of the plain-text character since that mode never shows the plain hanzi at all,
-   only the animated one. Each character pairs with its own pinyin syllable underneath it
+/* the animation is the primary character display in both contexts now — sits in place of the
+   plain-text character inside the same tinted card (Word Detail's .detail-card, the flashcard's
+   .flashcard-card), no border/background of its own so it blends in rather than reading as a
+   separate boxed-off section. Each character pairs with its own pinyin syllable underneath it
    (.stroke-anim-pair), and the word's meaning shows once below the whole row
    (.stroke-anim-meaning) — see renderStrokeAnimation. */
 .stroke-anim-container{
@@ -322,20 +321,11 @@ input::placeholder{ color:var(--text-muted); }
   gap:8px;
   margin-bottom:10px;
 }
-.stroke-anim-container.stroke-anim-boxed{ margin-bottom:0; }
 .stroke-anim-row{
   display:flex;
   flex-wrap:wrap;
   gap:4px;
   justify-content:center;
-}
-.stroke-anim-boxed .stroke-anim-row{ gap:8px; }
-.stroke-anim-wrap{
-  margin-top:14px;
-  padding:12px;
-  border:1px solid var(--border);
-  border-radius:var(--radius-lg);
-  background:var(--surface-2);
 }
 .stroke-anim-pair{ display:flex; flex-direction:column; align-items:center; gap:3px; }
 .stroke-anim-char{
@@ -343,20 +333,14 @@ input::placeholder{ color:var(--text-muted); }
   height:90px;
   flex:0 0 auto;
 }
-.stroke-anim-boxed .stroke-anim-char{
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  background:var(--surface-1);
-}
 .stroke-anim-char.stroke-anim-missing{ opacity:.35; }
 .stroke-anim-pinyin{ font-size:12px; font-weight:600; color:var(--text-secondary); }
 .stroke-anim-meaning{ margin:0; font-size:20px; font-weight:600; color:var(--text-primary); text-align:center; }
 
-/* replay + speed controls — sit where the font picker used to (flashcard's card-actions-top),
-   or above the boxed animation (Word Detail); only shown once an animation is actually playing,
+/* replay + speed controls — sit in the card's top-right corner (card-actions-top), where the
+   font picker used to be on the flashcard; only shown once an animation is actually playing,
    see renderStrokeAnimation's onDone callback */
 .stroke-anim-controls{ display:flex; align-items:center; gap:6px; }
-.stroke-anim-wrap .stroke-anim-controls{ justify-content:flex-end; margin-bottom:8px; }
 .stroke-control-btn{
   width:32px; height:32px; border-radius:50%;
   background:var(--surface-1); border:none; padding:0;

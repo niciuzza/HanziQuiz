@@ -2152,23 +2152,27 @@ function renderWordDetail(){
   const tv = tintOf(primaryTag(w.tags));
   document.getElementById('detailCard').style.background = `var(${tv.bg})`;
 
-  // stroke animation shows in its own boxed section below the card, leaving the plain-text
-  // character up top untouched — unlike the Write-mode flashcard, which replaces the plain
-  // character in place since it never shows it at all. Resets fully on every entry to this
-  // screen since it's re-run for every word. Only shows on an explicit click, not autoplay.
-  const strokeBtn = document.getElementById('detailStrokeBtn');
-  const strokeWrap = document.getElementById('detailStrokeWrap');
+  // the stroke animation is now the primary display, taking over the same tinted card the
+  // plain character used to own — tries automatically on every entry to this screen (no click
+  // needed), and only falls back to the plain character/pinyin/meaning if it can't load
+  // (offline, CDN down): the fallback elements stay populated above so they're ready instantly
+  // once onDone reports failure, no flash of empty content either way.
+  const detailCharEl = document.getElementById('detailChar');
+  const detailPinyinEl = document.getElementById('detailPinyin');
+  const detailMeaningEl = document.getElementById('detailMeaning');
+  const strokeControls = document.getElementById('detailStrokeControls');
   const strokeContainer = document.getElementById('detailStrokeAnim');
-  strokeWrap.classList.add('hidden');
-  strokeContainer.innerHTML = '';
-  strokeContainer._word = null;
-  strokeContainer._hwToken = (strokeContainer._hwToken || 0) + 1; // invalidate any in-flight render from the previous word
-  strokeBtn.classList.remove('hidden');
-  strokeBtn.textContent = '✍️ Show stroke order';
-  strokeBtn.onclick = () => {
-    strokeBtn.classList.add('hidden'); // one-shot per word; re-shown next time this screen opens
-    renderStrokeAnimation(strokeContainer, w, (ok) => { strokeWrap.classList.toggle('hidden', !ok); });
-  };
+  detailCharEl.classList.remove('hidden');
+  detailPinyinEl.classList.remove('hidden');
+  detailMeaningEl.classList.remove('hidden');
+  strokeContainer.classList.add('hidden');
+  strokeControls.classList.add('hidden');
+  renderStrokeAnimation(strokeContainer, w, (ok) => {
+    detailCharEl.classList.toggle('hidden', ok);
+    detailPinyinEl.classList.toggle('hidden', ok);
+    detailMeaningEl.classList.toggle('hidden', ok);
+    strokeControls.classList.toggle('hidden', !ok);
+  });
 
   // lifetime stats for this word, fetched fresh (not from whatever fields the calling
   // screen's row happened to carry) so they're always accurate
