@@ -41,20 +41,23 @@ function loadHanziWriter(){
 // shared 1x/2x preference for the stroke-drawing speed only — doesn't affect the pause between
 // characters or the pause before the whole word loops again, just how fast each stroke draws
 let strokeAnimSpeed = 1;
-// Renders one HanziWriter instance per character in `word`, side by side (the container is a
-// flex-wrap row — see .stroke-anim-container in style.css), and plays them one at a time —
-// character 1 finishes before character 2 starts, like actually writing the word — then loops
-// back to the first character after a pause. `container` is cleared on every call since it's
-// reused across different words/cards (also reused for a manual replay of the same word); never
-// throws — offline, CDN-down, or a single character's stroke data 404ing all degrade to "just
-// skip that one", never a hung sequence or a broken screen. HanziWriter's default
-// charDataLoader fetches stroke data per-character from jsdelivr on its own, no extra config
-// needed. `onDone(success)`, if given, fires once loading resolves either way, so a caller can
-// show/hide its own surrounding UI (e.g. replay/speed controls) in step with the animation
-// itself actually being available.
-function renderStrokeAnimation(container, word, onDone){
+// Renders one HanziWriter instance per character in `w.c`, each paired with its own pinyin
+// syllable directly underneath it (so a multi-character word shows which syllable belongs to
+// which character, not just one pinyin string for the whole word), plus the word's meaning as
+// a caption below the whole row. Characters are laid out side by side (the container is a
+// flex-wrap row — see .stroke-anim-container in style.css), and play one at a time — character
+// 1 finishes before character 2 starts, like actually writing the word — then loop back to the
+// first character after a pause. `container` is cleared on every call since it's reused across
+// different words/cards (also reused for a manual replay of the same word); never throws —
+// offline, CDN-down, or a single character's stroke data 404ing all degrade to "just skip that
+// one", never a hung sequence or a broken screen. HanziWriter's default charDataLoader fetches
+// stroke data per-character from jsdelivr on its own, no extra config needed. `onDone(success)`,
+// if given, fires once loading resolves either way, so a caller can show/hide its own
+// surrounding UI (e.g. replay/speed controls) in step with the animation itself actually being
+// available.
+function renderStrokeAnimation(container, w, onDone){
   container.innerHTML = '';
-  container._word = word; // remembered so a replay button can re-invoke this same render later
+  container._word = w; // remembered so a replay button can re-invoke this same render later
   const myToken = (container._hwToken = (container._hwToken || 0) + 1); // guards rapid re-invocation (double clicks, fast card advances)
   loadHanziWriter().then((ok) => {
     if (container._hwToken !== myToken) return; // superseded by a newer call — drop this stale result
@@ -64,10 +67,25 @@ function renderStrokeAnimation(container, word, onDone){
     const strokeColor = style.getPropertyValue('--text-primary').trim() || '#0f172a';
     const outlineColor = style.getPropertyValue('--border').trim() || '#e2e8f0';
     const highlightColor = style.getPropertyValue('--accent-solid').trim() || '#4f46e5';
-    const entries = Array.from(word).map((ch) => {
+    const chars = Array.from(w.c);
+    // one syllable per character in the normal case (that's what spacedPinyin is for) — but
+    // fall back to blank rather than a mismatched syllable if a word's pinyin doesn't split
+    // cleanly 1:1 (e.g. a phrase entry with punctuation)
+    const syllables = spacedPinyin(w.p).split(' ');
+    const rowEl = document.createElement('div');
+    rowEl.className = 'stroke-anim-row';
+    container.appendChild(rowEl);
+    const entries = chars.map((ch, i) => {
+      const pair = document.createElement('div');
+      pair.className = 'stroke-anim-pair';
       const box = document.createElement('div');
       box.className = 'stroke-anim-char';
-      container.appendChild(box);
+      pair.appendChild(box);
+      const pinyinEl = document.createElement('span');
+      pinyinEl.className = 'stroke-anim-pinyin';
+      pinyinEl.textContent = chars.length === syllables.length ? syllables[i] : '';
+      pair.appendChild(pinyinEl);
+      rowEl.appendChild(pair);
       const entry = { writer: null, failed: false };
       try {
         entry.writer = HanziWriter.create(box, ch, {
@@ -80,6 +98,10 @@ function renderStrokeAnimation(container, word, onDone){
       } catch (e) { box.classList.add('stroke-anim-missing'); entry.failed = true; }
       return entry;
     });
+    const meaningEl = document.createElement('p');
+    meaningEl.className = 'stroke-anim-meaning';
+    meaningEl.textContent = w.m;
+    container.appendChild(meaningEl);
     // plays entries[i] to completion, then entries[i+1], and so on; a char whose data failed
     // to load is skipped rather than animated (never fires, would otherwise stall the sequence
     // forever); once every character has played, pause and restart from the first
@@ -991,10 +1013,13 @@ function renderFlashcard(){
   document.getElementById('flashcardPinyin').textContent = spacedPinyin(w.p);
   document.getElementById('flashcardMeaning').textContent = w.m;
   document.getElementById('flashcardSpeakBtn').onclick = (e) => { e.stopPropagation(); speak(w.c); };
-  // 'writing' mode flips which side is the front: meaning+pinyin (flashcardRevealInfo) is
-  // always visible instead of reveal-gated, and the hanzi is the reveal-gated answer — but in
-  // writing mode the plain-text hanzi (flashcardChar) is never shown at all, replaced in place
-  // by the stroke animation once revealed (see flashcardStrokeAnim below) — see flashcardMode
+  // 'writing' mode flips which side is the front: meaning+pinyin (flashcardRevealInfo) is the
+  // prompt, shown before reveal instead of being reveal-gated — but once revealed, the stroke
+  // animation's own pinyin-per-character + meaning caption (see renderStrokeAnimation) covers
+  // the same information, so the prompt hides again post-reveal rather than sitting there
+  // duplicated. The plain-text hanzi (flashcardChar) is never shown at all in writing mode,
+  // replaced in place by the stroke animation once revealed (see flashcardStrokeAnim below) —
+  // see flashcardMode
   const writing = flashcardMode === 'writing';
   const disambigEl = document.getElementById('flashcardDisambig');
   const example = findDisambiguationExample(w);
@@ -1004,7 +1029,7 @@ function renderFlashcard(){
   disambigEl.classList.toggle('hidden', !example || (writing && !flashcardRevealed));
   if (example) disambigEl.innerHTML = `as in <b>${example.c}</b>`;
   document.getElementById('flashcardChar').classList.toggle('hidden', writing);
-  document.getElementById('flashcardRevealInfo').classList.toggle('hidden', writing ? false : !flashcardRevealed);
+  document.getElementById('flashcardRevealInfo').classList.toggle('hidden', writing ? flashcardRevealed : !flashcardRevealed);
   hint.classList.toggle('hidden', flashcardRevealed);
   rateRow.classList.toggle('hidden', writing || !flashcardRevealed);
   writingRateRow.classList.toggle('hidden', !writing || !flashcardRevealed);
@@ -1039,7 +1064,7 @@ function revealFlashcard(){
     const strokeAnim = document.getElementById('flashcardStrokeAnim');
     const strokeControls = document.getElementById('flashcardStrokeControls');
     strokeAnim.classList.remove('hidden');
-    renderStrokeAnimation(strokeAnim, flashcardPool[flashcardIndex].c, (ok) => {
+    renderStrokeAnimation(strokeAnim, flashcardPool[flashcardIndex], (ok) => {
       strokeControls.classList.toggle('hidden', !ok);
     });
   }
@@ -2127,23 +2152,27 @@ function renderWordDetail(){
   const tv = tintOf(primaryTag(w.tags));
   document.getElementById('detailCard').style.background = `var(${tv.bg})`;
 
-  // stroke animation shows in its own boxed section below the card, leaving the plain-text
-  // character up top untouched — unlike the Write-mode flashcard, which replaces the plain
-  // character in place since it never shows it at all. Resets fully on every entry to this
-  // screen since it's re-run for every word. Only shows on an explicit click, not autoplay.
-  const strokeBtn = document.getElementById('detailStrokeBtn');
-  const strokeWrap = document.getElementById('detailStrokeWrap');
+  // the stroke animation is now the primary display, taking over the same tinted card the
+  // plain character used to own — tries automatically on every entry to this screen (no click
+  // needed), and only falls back to the plain character/pinyin/meaning if it can't load
+  // (offline, CDN down): the fallback elements stay populated above so they're ready instantly
+  // once onDone reports failure, no flash of empty content either way.
+  const detailCharEl = document.getElementById('detailChar');
+  const detailPinyinEl = document.getElementById('detailPinyin');
+  const detailMeaningEl = document.getElementById('detailMeaning');
+  const strokeControls = document.getElementById('detailStrokeControls');
   const strokeContainer = document.getElementById('detailStrokeAnim');
-  strokeWrap.classList.add('hidden');
-  strokeContainer.innerHTML = '';
-  strokeContainer._word = null;
-  strokeContainer._hwToken = (strokeContainer._hwToken || 0) + 1; // invalidate any in-flight render from the previous word
-  strokeBtn.classList.remove('hidden');
-  strokeBtn.textContent = '✍️ Show stroke order';
-  strokeBtn.onclick = () => {
-    strokeBtn.classList.add('hidden'); // one-shot per word; re-shown next time this screen opens
-    renderStrokeAnimation(strokeContainer, w.c, (ok) => { strokeWrap.classList.toggle('hidden', !ok); });
-  };
+  detailCharEl.classList.remove('hidden');
+  detailPinyinEl.classList.remove('hidden');
+  detailMeaningEl.classList.remove('hidden');
+  strokeContainer.classList.add('hidden');
+  strokeControls.classList.add('hidden');
+  renderStrokeAnimation(strokeContainer, w, (ok) => {
+    detailCharEl.classList.toggle('hidden', ok);
+    detailPinyinEl.classList.toggle('hidden', ok);
+    detailMeaningEl.classList.toggle('hidden', ok);
+    strokeControls.classList.toggle('hidden', !ok);
+  });
 
   // lifetime stats for this word, fetched fresh (not from whatever fields the calling
   // screen's row happened to carry) so they're always accurate

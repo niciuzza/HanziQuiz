@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=96">
+<link rel="stylesheet" href="style.css?v=100">
 </head>
 <body>
   <div class="app">
@@ -307,22 +307,20 @@
 
       <div class="question-box detail-card" id="detailCard">
         <div class="q-tags" id="detailListTags"></div>
-        <button class="detail-speak-btn" id="detailSpeakBtn" aria-label="play audio">🔊</button>
+        <div class="card-actions-top">
+          <div class="stroke-anim-controls hidden" id="detailStrokeControls">
+            <button class="stroke-control-btn" id="detailStrokeReplayBtn" aria-label="Replay animation">↻</button>
+            <div class="stroke-speed-toggle">
+              <button class="stroke-speed-btn active" id="detailSpeed1xBtn" data-speed="1">1x</button>
+              <button class="stroke-speed-btn" id="detailSpeed2xBtn" data-speed="2">2x</button>
+            </div>
+          </div>
+          <button class="detail-speak-btn" id="detailSpeakBtn" aria-label="play audio">🔊</button>
+        </div>
         <div class="q-main" id="detailChar">-</div>
+        <div class="stroke-anim-container hidden" id="detailStrokeAnim"></div>
         <p class="detail-pinyin" id="detailPinyin"></p>
         <p class="detail-meaning" id="detailMeaning"></p>
-      </div>
-
-      <button class="outline-btn stroke-anim-btn" id="detailStrokeBtn" style="margin-top:14px;">✍️ Show stroke order</button>
-      <div class="stroke-anim-wrap hidden" id="detailStrokeWrap">
-        <div class="stroke-anim-controls">
-          <button class="stroke-control-btn" id="detailStrokeReplayBtn" aria-label="Replay animation">↻</button>
-          <div class="stroke-speed-toggle">
-            <button class="stroke-speed-btn active" id="detailSpeed1xBtn" data-speed="1">1x</button>
-            <button class="stroke-speed-btn" id="detailSpeed2xBtn" data-speed="2">2x</button>
-          </div>
-        </div>
-        <div class="stroke-anim-container stroke-anim-boxed" id="detailStrokeAnim"></div>
       </div>
 
       <div class="detail-meta-list">
@@ -524,7 +522,7 @@
 
   </div>
 
-  <script src="data.js?v=96"></script>
-  <script src="script.js?v=96"></script>
+  <script src="data.js?v=100"></script>
+  <script src="script.js?v=100"></script>
 </body>
 </html>
