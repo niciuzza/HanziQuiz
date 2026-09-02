@@ -350,7 +350,7 @@ input::placeholder{ color:var(--text-muted); }
 }
 .stroke-anim-char.stroke-anim-missing{ opacity:.35; }
 .stroke-anim-pinyin{ font-size:12px; font-weight:600; color:var(--text-secondary); }
-.stroke-anim-meaning{ margin:0; font-size:15px; font-weight:600; color:var(--text-primary); text-align:center; }
+.stroke-anim-meaning{ margin:0; font-size:20px; font-weight:600; color:var(--text-primary); text-align:center; }
 
 /* replay + speed controls — sit where the font picker used to (flashcard's card-actions-top),
    or above the boxed animation (Word Detail); only shown once an animation is actually playing,
