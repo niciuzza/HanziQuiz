@@ -116,6 +116,81 @@ function renderStrokeAnimation(container, w, onDone){
     if (onDone) onDone(true);
   });
 }
+// The writing test itself: instead of demoing the strokes, every character's box becomes a
+// canvas the learner draws on, and HanziWriter checks each stroke against the real stroke data
+// — so the app grades the handwriting rather than the learner self-reporting. Characters are
+// quizzed one at a time, left to right; a blank box with no outline to trace (showCharacter and
+// showOutline both off) means it's recall, not tracing, though HanziWriter still hints the next
+// stroke after a few misses. Mistakes are counted across the whole word so the card can be
+// scored automatically once the last character is finished. `onWordDone(totalMistakes)` fires
+// then; `onReady(success)` fires once loading resolves either way, like renderStrokeAnimation's
+// onDone, so the caller can fall back to self-grading when the CDN is unreachable.
+function renderStrokeQuiz(container, w, onWordDone, onReady){
+  container.innerHTML = '';
+  container._word = w;
+  const myToken = (container._hwToken = (container._hwToken || 0) + 1);
+  loadHanziWriter().then((ok) => {
+    if (container._hwToken !== myToken) return;
+    if (!ok || !window.HanziWriter) { container.classList.add('hidden'); if (onReady) onReady(false); return; }
+    container.classList.remove('hidden');
+    const style = getComputedStyle(document.documentElement);
+    const strokeColor = style.getPropertyValue('--text-primary').trim() || '#0f172a';
+    const outlineColor = style.getPropertyValue('--border').trim() || '#e2e8f0';
+    const highlightColor = style.getPropertyValue('--accent-solid').trim() || '#4f46e5';
+    const chars = Array.from(w.c);
+    const syllables = spacedPinyin(w.p).split(' ');
+    const rowEl = document.createElement('div');
+    rowEl.className = 'stroke-anim-row';
+    container.appendChild(rowEl);
+    // no meaning caption here, unlike the demo — the card's own prompt (flashcardRevealInfo)
+    // is already showing meaning+pinyin while the learner writes
+    const entries = chars.map((ch, i) => {
+      const pair = document.createElement('div');
+      pair.className = 'stroke-anim-pair';
+      const box = document.createElement('div');
+      box.className = 'stroke-anim-char stroke-quiz-char';
+      pair.appendChild(box);
+      const pinyinEl = document.createElement('span');
+      pinyinEl.className = 'stroke-anim-pinyin';
+      pinyinEl.textContent = chars.length === syllables.length ? syllables[i] : '';
+      pair.appendChild(pinyinEl);
+      rowEl.appendChild(pair);
+      const entry = { writer: null, box };
+      try {
+        entry.writer = HanziWriter.create(box, ch, {
+          width: 90, height: 90, padding: 5,
+          strokeColor, radicalColor: highlightColor, outlineColor, drawingColor: highlightColor,
+          showCharacter: false, showOutline: false, // recall, not tracing
+          showHintAfterMisses: 3,
+          onLoadCharDataError: () => { box.classList.add('stroke-anim-missing'); },
+        });
+      } catch (e) { box.classList.add('stroke-anim-missing'); }
+      return entry;
+    });
+    // drawing happens inside the flashcard, whose own click handler reveals the answer — swallow
+    // pointer events here so a drawn stroke never doubles as "tap the card to reveal"
+    ['pointerdown', 'mousedown', 'touchstart', 'click'].forEach((evt) => {
+      container.addEventListener(evt, (e) => e.stopPropagation());
+    });
+    let totalMistakes = 0;
+    function quizFrom(i){
+      if (container._hwToken !== myToken) return; // container reused for another card — stop
+      if (i >= entries.length) { if (onWordDone) onWordDone(totalMistakes); return; }
+      const entry = entries[i];
+      if (!entry.writer) { quizFrom(i + 1); return; } // this char's data failed — skip, don't stall
+      entry.box.classList.add('stroke-quiz-active');
+      entry.writer.quiz({
+        onMistake: () => { totalMistakes++; },
+        onComplete: () => {
+          entry.box.classList.remove('stroke-quiz-active');
+          quizFrom(i + 1);
+        },
+      });
+    }
+    quizFrom(0);
+    if (onReady) onReady(true);
+  });
+}
 // keeps every speed toggle in the app (Word Detail + flashcard) in sync, since strokeAnimSpeed
 // is one shared preference rather than per-screen state
 function syncStrokeSpeedButtons(){
@@ -1036,19 +1111,44 @@ function renderFlashcard(){
   // the character-font picker only makes sense where the plain-text hanzi is actually shown —
   // hidden in writing mode entirely, since that mode never shows the plain hanzi at all
   document.getElementById('flashcardFontPicker').classList.toggle('hidden', writing);
-  // hides+clears whenever not (writing && revealed) — covers both "not writing mode" and "not
-  // revealed yet"; the actual show+animate happens in revealFlashcard()'s autoplay below, since
-  // that's the one explicit user action that should trigger it, not every render pass. The
-  // replay/speed controls go along with it — they're meaningless without a playing animation.
+  hint.textContent = writing
+    ? 'Write the character(s) above — or tap the card to reveal the answer'
+    : 'Tap the card to reveal the answer';
   const strokeAnim = document.getElementById('flashcardStrokeAnim');
   const strokeControls = document.getElementById('flashcardStrokeControls');
-  if (!writing || !flashcardRevealed) {
+  if (!writing) {
     strokeAnim.classList.add('hidden');
     strokeAnim.innerHTML = '';
     strokeAnim._hwToken = (strokeAnim._hwToken || 0) + 1;
+    strokeAnim._quizFor = null;
     strokeControls.classList.add('hidden');
+  } else if (!flashcardRevealed) {
+    // writing mode before the reveal: the boxes are the answer sheet — blank canvases the
+    // learner draws on, checked stroke by stroke (see renderStrokeQuiz). Keyed on the word so
+    // repeat render passes don't wipe a half-finished character out from under them.
+    const key = statKey(w.c, w.m);
+    if (strokeAnim._quizFor !== key) {
+      strokeAnim._quizFor = key;
+      strokeControls.classList.add('hidden'); // replay/speed belong to the demo, not the quiz
+      startWritingQuiz(strokeAnim, w);
+    }
   }
+  // when writing && revealed, the demo animation takes over — set up by revealFlashcard()
   document.getElementById('flashcardPositionText').textContent = `${flashcardIndex + 1} / ${flashcardPool.length}`;
+}
+// scores the card automatically once every character has been drawn: a clean word (no wrong
+// strokes anywhere) counts as written correctly, anything else as wrong — no self-reporting.
+// Bails out if the learner moved on or hit reveal while the quiz was still running.
+function startWritingQuiz(container, w){
+  const idxAtStart = flashcardIndex;
+  container.classList.remove('hidden');
+  renderStrokeQuiz(container, w, (totalMistakes) => {
+    if (flashcardIndex !== idxAtStart || flashcardRevealed) return;
+    setTimeout(() => {
+      if (flashcardIndex !== idxAtStart || flashcardRevealed) return;
+      rateWritingAndAdvance(totalMistakes === 0);
+    }, 900); // beat to see the finished word before the card flips
+  });
 }
 function revealFlashcard(){
   if (flashcardRevealed) return;
@@ -1056,13 +1156,14 @@ function revealFlashcard(){
   saveFlashcardSession();
   renderFlashcard();
   if (autoPlaySound) speak(flashcardPool[flashcardIndex].c);
-  // writing mode already gates the answer behind this one explicit reveal tap, so the stroke
-  // animation autoplays here rather than needing its own button; the replay/speed controls
-  // only appear once the animation actually loads successfully (see the onDone callback) —
-  // no point offering to replay or speed up something that's offline/unavailable
+  // in writing mode this tap means "show me" — the answer demo replaces whatever the learner
+  // had drawn so far, and they self-grade with the correct/wrong buttons instead of the quiz
+  // scoring it. The replay/speed controls only appear once the demo actually loads (see the
+  // onDone callback) — no point offering to replay something that's offline/unavailable
   if (flashcardMode === 'writing') {
     const strokeAnim = document.getElementById('flashcardStrokeAnim');
     const strokeControls = document.getElementById('flashcardStrokeControls');
+    strokeAnim._quizFor = null; // the quiz is over; let a later render start a fresh one
     strokeAnim.classList.remove('hidden');
     renderStrokeAnimation(strokeAnim, flashcardPool[flashcardIndex], (ok) => {
       strokeControls.classList.toggle('hidden', !ok);

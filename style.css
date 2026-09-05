@@ -334,6 +334,16 @@ input::placeholder{ color:var(--text-muted); }
   flex:0 0 auto;
 }
 .stroke-anim-char.stroke-anim-missing{ opacity:.35; }
+/* the writing test's blank boxes — dashed until it's that character's turn, solid while it is.
+   touch-action:none so drawing a stroke on a phone doesn't scroll the page instead */
+.stroke-quiz-char{
+  border:2px dashed var(--border-strong);
+  border-radius:var(--radius);
+  background:var(--surface-2);
+  cursor:crosshair;
+  touch-action:none;
+}
+.stroke-quiz-char.stroke-quiz-active{ border-style:solid; border-color:var(--accent-solid); }
 .stroke-anim-pinyin{ font-size:12px; font-weight:600; color:var(--text-secondary); }
 .stroke-anim-meaning{ margin:0; font-size:20px; font-weight:600; color:var(--text-primary); text-align:center; }
 
