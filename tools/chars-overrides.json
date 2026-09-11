@@ -1,0 +1,11 @@
+{
+  "$comment": "Hand corrections applied on top of Make Me a Hanzi's data by tools/build-chars.js. chars.js is generated, so edits made there vanish on the next run; they belong here. Keys are characters, values are the CHARS fields to replace. A field set to null is dropped, which is how an untrustworthy hint gets removed without inventing a replacement for it. Whitespace is tidied automatically, so that never needs an entry here.",
+
+  "了": { "h": "A child swaddled in blankets; compare 子" },
+  "做": { "h": "Someone 亻 who causes things to happen 故; 故 also provides the pronunciation" },
+
+  "白": { "h": null },
+  "一": { "h": null },
+  "再": { "h": null },
+  "非": { "h": "Two bird's wings opposed" }
+}

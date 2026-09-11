@@ -65,7 +65,23 @@ function loadDeckCharacters(){
 
 const TYPE_CODES = { pictophonetic: 'p', ideographic: 'i', pictographic: 'g' };
 
-function buildEntry(dictEntry){
+// a handful of source hints carry a stray leading/trailing space or a doubled one mid-sentence
+// ("Three  parallel lines"), which shows up verbatim in the app
+const tidy = (text) => text.replace(/\s+/g, ' ').trim();
+
+// Hand corrections, applied on top of the source. chars.js is generated, so fixes made by
+// editing it directly would vanish on the next run — they live here instead. A field set to
+// null is dropped, which is how a hint that can't be trusted gets removed without inventing a
+// replacement for it.
+function loadOverrides(){
+  const file = path.join(__dirname, 'chars-overrides.json');
+  if (!fs.existsSync(file)) return {};
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+  delete raw.$comment;
+  return raw;
+}
+
+function buildEntry(dictEntry, override){
   const out = {};
   if (dictEntry.decomposition) out.d = dictEntry.decomposition;
   if (dictEntry.radical) out.r = dictEntry.radical;
@@ -74,8 +90,11 @@ function buildEntry(dictEntry){
     if (TYPE_CODES[ety.type]) out.t = TYPE_CODES[ety.type];
     if (ety.semantic) out.s = ety.semantic;
     if (ety.phonetic) out.f = ety.phonetic;
-    if (ety.hint) out.h = ety.hint;
+    if (ety.hint) out.h = tidy(ety.hint);
   }
+  Object.entries(override || {}).forEach(([field, value]) => {
+    if (value === null) delete out[field]; else out[field] = typeof value === 'string' ? tidy(value) : value;
+  });
   return out;
 }
 
@@ -116,13 +135,14 @@ function serialise(name, obj){
 async function main(){
   const dict = await loadDictionary();
   const deckChars = loadDeckCharacters();
+  const overrides = loadOverrides();
 
   const chars = {};
   const missing = [];
   for (const ch of deckChars) {
     const entry = dict.get(ch);
     if (!entry) { missing.push(ch); continue; }
-    chars[ch] = buildEntry(entry);
+    chars[ch] = buildEntry(entry, overrides[ch]);
   }
 
   // every piece referenced by a decomposition, so the UI can gloss the parts it shows
@@ -151,6 +171,8 @@ async function main(){
   const glossed = Object.values(components).filter((c) => c[0]).length;
   const withReading = Object.values(components).filter((c) => c[1]).length;
   console.log(`components         : ${Object.keys(components).length} of ${referenced.size} referenced (${glossed} glossed, ${withReading} with pinyin)`);
+  const applied = Object.keys(overrides).filter((ch) => chars[ch]).length;
+  console.log(`hand corrections   : ${applied} applied of ${Object.keys(overrides).length} in chars-overrides.json`);
   if (missing.length) console.log(`not in dictionary  : ${missing.length} (${missing.join('')})`);
   console.log(`wrote ${path.relative(REPO, OUT)} (${(fs.statSync(OUT).size / 1024).toFixed(0)} KB)`);
 }
