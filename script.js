@@ -243,11 +243,9 @@ function buildCharBreakdown(ch){
   if (!showPieces && !hint) return null;
 
   const roleOf = (p) => (hasRoles && p === entry.s) ? 'semantic' : (hasRoles && p === entry.f) ? 'phonetic' : '';
-  // a piece only opens its family when there's a family to open — a component used by this one
-  // character alone would just lead to a page showing the word already on screen
-  const opensFamily = (p) => charsWithComponent(p).size >= 2;
-  const chip = (p) => `<span class="cb-piece ${roleOf(p)}${opensFamily(p) ? ' tappable' : ''}"`
-    + `${opensFamily(p) ? ` data-piece="${p}" role="button" tabindex="0"` : ''}>${p}</span>`;
+  // a piece only opens its family when there's a family to open (see hasComponentFamily)
+  const chip = (p) => `<span class="cb-piece ${roleOf(p)}${hasComponentFamily(p) ? ' tappable' : ''}"`
+    + `${hasComponentFamily(p) ? ` data-piece="${p}" role="button" tabindex="0"` : ''}>${p}</span>`;
   const box = document.createElement('div');
   box.className = 'char-breakdown-item';
 
@@ -287,6 +285,77 @@ function renderCharBreakdown(section, container, word){
     seen.add(ch);
     const block = buildCharBreakdown(ch);
     if (block) container.appendChild(block);
+  });
+  section.classList.toggle('hidden', container.children.length === 0);
+}
+
+// The reverse of a breakdown: the deck characters built FROM this one, grouped by the job it
+// does inside each. The grouping is the whole point, because the job varies wildly. 女 carries
+// the meaning almost everywhere it appears, while 白 is pure sound — 怕 pà, 拍 pāi, 百 bǎi,
+// 迫 pò, and not one of them is about being white. A flat "characters with the 白 radical" list
+// would quietly teach the opposite of the truth.
+const COMPONENT_ROLES = [
+  { key: 'meaning', label: 'meaning', cls: 'semantic', lead: 'carries the meaning in' },
+  { key: 'sound', label: 'sound', cls: 'phonetic', lead: 'supplies the sound in' },
+  { key: 'contains', label: 'part of', cls: '', lead: 'is also a part of' },
+];
+// only pictophonetic characters have the source labelling which piece does what, so most pairs
+// land in "contains" — said plainly rather than guessed at
+function componentRoleIn(piece, ch){
+  const e = CHARS[ch] || {};
+  if (e.t === 'p' && e.s === piece) return 'meaning';
+  if (e.t === 'p' && e.f === piece) return 'sound';
+  return 'contains';
+}
+function componentRoleMap(piece){
+  const out = { meaning: [], sound: [], contains: [] };
+  [...charsWithComponent(piece)]
+    .filter(ch => ch !== piece)
+    .sort((a, b) => a.codePointAt(0) - b.codePointAt(0))
+    .forEach(ch => out[componentRoleIn(piece, ch)].push(ch));
+  return out;
+}
+// a component used by a single character has no family worth a screen of its own — that page
+// would list the character already being read
+const COMPONENT_FAMILY_MIN = 2;
+function hasComponentFamily(piece){ return charsWithComponent(piece).size >= COMPONENT_FAMILY_MIN; }
+
+// shared by Word Detail (where tapping it opens the family screen) and by the family screen
+// itself (where it is already open, so `onOpen` is omitted and the card stays inert)
+function buildComponentUsage(piece, onOpen){
+  const map = componentRoleMap(piece);
+  const total = COMPONENT_ROLES.reduce((n, r) => n + map[r.key].length, 0);
+  if (!total) return null;
+  const card = document.createElement('div');
+  card.className = 'usage-card' + (onOpen ? ' tappable' : '');
+  let html = '<div class="usage-head">'
+    + `<span class="cb-char">${piece}</span>`
+    + `<span class="usage-count">in ${total} character${total === 1 ? '' : 's'}</span>`
+    + (onOpen ? '<span class="usage-go">›</span>' : '')
+    + '</div>';
+  html += '<div class="usage-roles">' + COMPONENT_ROLES.filter(r => map[r.key].length).map(r =>
+    `<div class="usage-role-row"><span class="cb-role ${r.cls}">${r.label}</span>`
+    + `<span class="usage-chars">${map[r.key].map(ch => `<span class="usage-char">${ch}</span>`).join('')}</span></div>`
+  ).join('') + '</div>';
+  card.innerHTML = html;
+  if (onOpen) {
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+    card.onclick = onOpen;
+    card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } };
+  }
+  return card;
+}
+// one card per character of the word that other characters are built from, so 白 explains where
+// it turns up and 妈妈 (whose 妈 builds nothing) shows no section at all
+function renderComponentUsage(section, container, word){
+  container.innerHTML = '';
+  const seen = new Set();
+  Array.from(word).forEach(ch => {
+    if (seen.has(ch) || !hasComponentFamily(ch)) return;
+    seen.add(ch);
+    const card = buildComponentUsage(ch, () => pushComponentFamily(ch));
+    if (card) container.appendChild(card);
   });
   section.classList.toggle('hidden', container.children.length === 0);
 }
@@ -1755,6 +1824,11 @@ function renderComponentFamily(){
   document.getElementById('componentGloss').textContent = gloss || '—';
   document.getElementById('componentSpeakBtn').onclick = () => speak(piece);
 
+  const usage = document.getElementById('familyUsage');
+  usage.innerHTML = '';
+  const usageCard = buildComponentUsage(piece);
+  if (usageCard) usage.appendChild(usageCard);
+
   renderTagFilterRow('familyFilterRow', familyTags, renderComponentFamily);
   const pool = combinedPool().filter(w => familyTags.size === 0 || w.tags.some(t => familyTags.has(t)));
   const family = wordsWithComponent(piece, pool);
@@ -2498,6 +2572,12 @@ function renderWordDetail(){
   renderCharBreakdown(
     document.getElementById('detailBreakdownSection'),
     document.getElementById('detailBreakdown'),
+    w.c
+  );
+
+  renderComponentUsage(
+    document.getElementById('detailUsageSection'),
+    document.getElementById('detailUsage'),
     w.c
   );
 
