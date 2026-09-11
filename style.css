@@ -818,6 +818,37 @@ button.settings-menu-item:hover{ background:var(--surface-1); }
   color:var(--text-muted); margin-right:7px;
 }
 
+/* ---------- Where a character turns up (the reverse of a breakdown) ---------- */
+.component-usage{ display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.component-usage:empty{ display:none; }
+.usage-card{
+  padding:14px 16px;
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  background:var(--surface-2);
+}
+.usage-card.tappable{ cursor:pointer; }
+.usage-card.tappable:hover{ border-color:var(--border-strong); }
+.usage-card.tappable:focus-visible{ outline:2px solid var(--accent-solid); outline-offset:1px; }
+.usage-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.usage-count{ font-size:13px; color:var(--text-secondary); }
+.usage-go{ margin-left:auto; font-size:20px; color:var(--text-muted); line-height:1; }
+.usage-roles{ display:flex; flex-direction:column; gap:7px; }
+.usage-role-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.usage-chars{ display:flex; flex-wrap:wrap; gap:5px; }
+.usage-char{
+  font-family:'Noto Sans SC',sans-serif;
+  font-size:19px; font-weight:700; line-height:1.15;
+  padding:2px 7px;
+  border-radius:var(--radius);
+  background:var(--surface-1);
+  color:var(--text-primary);
+  cursor:pointer;
+  box-shadow:inset 0 0 0 1px var(--border-strong);
+}
+.usage-char:hover{ filter:brightness(1.12); }
+.usage-char:focus-visible{ outline:2px solid var(--accent-solid); outline-offset:1px; }
+
 /* ---------- Word Detail ---------- */
 .detail-card{ position:relative; padding-top:44px; }
 .detail-speak-btn{
