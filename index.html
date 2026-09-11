@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=106">
+<link rel="stylesheet" href="style.css?v=107">
 </head>
 <body>
   <div class="app">
@@ -332,26 +332,18 @@
         <div class="char-breakdown" id="detailBreakdown"></div>
       </div>
 
-      <div class="detail-meta-list">
-        <div class="detail-meta-row"><span class="detail-meta-label">Topic</span><span class="detail-meta-value" id="detailTopic">—</span></div>
-        <div class="detail-meta-row"><span class="detail-meta-label">Part of speech</span><span class="detail-meta-value" id="detailPos">—</span></div>
-      </div>
+      <div class="detail-attributes" id="detailAttributes"></div>
 
-      <div class="detail-meta-list">
-        <div class="detail-meta-row"><span class="detail-meta-label">Correct</span><span class="detail-meta-value" id="detailCorrect">0</span></div>
-        <div class="detail-meta-row"><span class="detail-meta-label">Wrong</span><span class="detail-meta-value" id="detailWrong">0</span></div>
-        <div class="detail-meta-row"><span class="detail-meta-label">Accuracy</span><span class="detail-meta-value" id="detailAccuracy">No attempts yet</span></div>
-      </div>
-
-      <div class="detail-meta-list">
-        <div class="detail-meta-row"><span class="detail-meta-label">Write correct</span><span class="detail-meta-value" id="detailWriteCorrect">0</span></div>
-        <div class="detail-meta-row"><span class="detail-meta-label">Write wrong</span><span class="detail-meta-value" id="detailWriteWrong">0</span></div>
-        <div class="detail-meta-row"><span class="detail-meta-label">Write accuracy</span><span class="detail-meta-value" id="detailWriteAccuracy">Not practiced yet</span></div>
-      </div>
-
-      <div class="detail-meta-list">
-        <div class="detail-meta-row"><span class="detail-meta-label">Flashcard memory</span><span class="detail-meta-value" id="detailSrsLevel">Not studied yet</span></div>
-        <div class="detail-meta-row hidden" id="detailSrsDueRow"><span class="detail-meta-label">Next review</span><span class="detail-meta-value" id="detailSrsDue">—</span></div>
+      <div class="detail-meta-list hidden" id="detailStats">
+        <div class="detail-meta-row hidden" id="detailQuizRow">
+          <span class="detail-meta-label">Quiz</span><span class="detail-meta-value" id="detailQuizValue"></span>
+        </div>
+        <div class="detail-meta-row hidden" id="detailWriteRow">
+          <span class="detail-meta-label">Writing</span><span class="detail-meta-value" id="detailWriteValue"></span>
+        </div>
+        <div class="detail-meta-row hidden" id="detailMemoryRow">
+          <span class="detail-meta-label">Memory</span><span class="detail-meta-value" id="detailMemoryValue"></span>
+        </div>
       </div>
     </section>
 
@@ -557,9 +549,9 @@
 
   </div>
 
-  <script src="data.js?v=106"></script>
+  <script src="data.js?v=107"></script>
   <!-- character composition data (CHARS/COMPONENTS) — separate file, LGPL v3, see NOTICE.md -->
-  <script src="chars.js?v=106"></script>
-  <script src="script.js?v=106"></script>
+  <script src="chars.js?v=107"></script>
+  <script src="script.js?v=107"></script>
 </body>
 </html>

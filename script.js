@@ -2469,8 +2469,6 @@ function renderWordDetail(){
   document.getElementById('detailPinyin').textContent = spacedPinyin(w.p);
   document.getElementById('detailMeaning').textContent = w.m;
   document.getElementById('detailListTags').innerHTML = w.tags.map(badgeHTML).join('');
-  document.getElementById('detailTopic').textContent = w.topic || '—';
-  document.getElementById('detailPos').textContent = w.pos || '—';
   document.getElementById('detailSpeakBtn').onclick = () => speak(w.c);
   const tv = tintOf(primaryTag(w.tags));
   document.getElementById('detailCard').style.background = `var(${tv.bg})`;
@@ -2503,31 +2501,34 @@ function renderWordDetail(){
     w.c
   );
 
-  // lifetime stats for this word, fetched fresh (not from whatever fields the calling
-  // screen's row happened to carry) so they're always accurate
-  const s = getStats(w.c, w.m);
-  const seen = s.correct + s.wrong;
-  const acc = seen > 0 ? Math.round(100 * s.correct / seen) : null;
-  document.getElementById('detailCorrect').textContent = s.correct;
-  document.getElementById('detailWrong').textContent = s.wrong;
-  document.getElementById('detailAccuracy').textContent = acc !== null ? acc + '%' : 'No attempts yet';
+  // topic and part of speech are attributes of the word rather than progress, so they read as
+  // plain chips under the card instead of taking a labelled row each
+  document.getElementById('detailAttributes').innerHTML =
+    [w.topic, w.pos].filter(Boolean).map(a => `<span class="detail-attribute">${a}</span>`).join('');
 
-  const writeSeen = s.writeCorrect + s.writeWrong;
-  const writeAcc = writeSeen > 0 ? Math.round(100 * s.writeCorrect / writeSeen) : null;
-  document.getElementById('detailWriteCorrect').textContent = s.writeCorrect;
-  document.getElementById('detailWriteWrong').textContent = s.writeWrong;
-  document.getElementById('detailWriteAccuracy').textContent = writeAcc !== null ? writeAcc + '%' : 'Not practiced yet';
+  // lifetime stats for this word, fetched fresh (not from whatever fields the calling
+  // screen's row happened to carry) so they're always accurate. Each line only appears once
+  // there is something to report — a word nobody has touched yet used to show seven rows of
+  // zeroes and "not studied yet", which is a lot of screen saying nothing happened.
+  const s = getStats(w.c, w.m);
+  const tally = (ok, bad) => {
+    const pct = Math.round(100 * ok / (ok + bad));
+    return `<span class="stat-ok">${ok} ✓</span><span class="stat-bad">${bad} ✗</span><span class="stat-pct">${pct}%</span>`;
+  };
+  const setRow = (rowId, valueId, show, html) => {
+    document.getElementById(rowId).classList.toggle('hidden', !show);
+    if (show) document.getElementById(valueId).innerHTML = html;
+    return show;
+  };
 
   const srs = getSrs(w.c, w.m);
-  const srsDueRow = document.getElementById('detailSrsDueRow');
-  if (srs) {
-    document.getElementById('detailSrsLevel').innerHTML = srsBadgeHTML(srs.intervalIndex);
-    srsDueRow.classList.remove('hidden');
-    document.getElementById('detailSrsDue').textContent = formatSrsDue(srs.nextReviewAt);
-  } else {
-    document.getElementById('detailSrsLevel').textContent = 'Not studied yet';
-    srsDueRow.classList.add('hidden');
-  }
+  const anyQuiz = setRow('detailQuizRow', 'detailQuizValue',
+    s.correct + s.wrong > 0, tally(s.correct, s.wrong));
+  const anyWriting = setRow('detailWriteRow', 'detailWriteValue',
+    s.writeCorrect + s.writeWrong > 0, tally(s.writeCorrect, s.writeWrong));
+  const anyMemory = setRow('detailMemoryRow', 'detailMemoryValue',
+    !!srs, srs ? `${srsBadgeHTML(srs.intervalIndex)}<span class="stat-due">${formatSrsDue(srs.nextReviewAt)}</span>` : '');
+  document.getElementById('detailStats').classList.toggle('hidden', !anyQuiz && !anyWriting && !anyMemory);
 }
 // "In 3 days (Jul 25)", or "Due now" once nextReviewAt has passed
 function formatSrsDue(ts){
