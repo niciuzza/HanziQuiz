@@ -242,7 +242,11 @@ function buildCharBreakdown(ch){
   if (!showPieces && !hint) return null;
 
   const roleOf = (p) => (hasRoles && p === entry.s) ? 'semantic' : (hasRoles && p === entry.f) ? 'phonetic' : '';
-  const chip = (p) => `<span class="cb-piece ${roleOf(p)}">${p}</span>`;
+  // a piece only opens its family when there's a family to open — a component used by this one
+  // character alone would just lead to a page showing the word already on screen
+  const opensFamily = (p) => charsWithComponent(p).size >= 2;
+  const chip = (p) => `<span class="cb-piece ${roleOf(p)}${opensFamily(p) ? ' tappable' : ''}"`
+    + `${opensFamily(p) ? ` data-piece="${p}" role="button" tabindex="0"` : ''}>${p}</span>`;
   const box = document.createElement('div');
   box.className = 'char-breakdown-item';
 
@@ -266,6 +270,11 @@ function buildCharBreakdown(ch){
   // describes the simplified shape rather than the character's actual history
   if (hint) html += `<p class="cb-hint"><span class="cb-hint-label">memory aid</span>${hint}</p>`;
   box.innerHTML = html;
+  box.querySelectorAll('.cb-piece.tappable').forEach(el => {
+    const open = () => pushComponentFamily(el.dataset.piece);
+    el.onclick = open;
+    el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+  });
   return box;
 }
 // one card per hanzi in the word, so 妈妈 explains 妈 once and 不好意思 explains all four
@@ -279,6 +288,35 @@ function renderCharBreakdown(section, container, word){
     if (block) container.appendChild(block);
   });
   section.classList.toggle('hidden', container.children.length === 0);
+}
+
+// piece -> the deck characters built from it, walked once over CHARS and kept. The breakdown
+// cards, the component family screen and (later) look-alike distractors all want this same
+// lookup, and rebuilding it per chip would mean rescanning thousands of words per render.
+let componentIndexCache = null;
+function componentIndex(){
+  if (componentIndexCache) return componentIndexCache;
+  componentIndexCache = new Map();
+  Object.keys(CHARS).forEach(ch => {
+    charPieces(ch).forEach(piece => {
+      if (!componentIndexCache.has(piece)) componentIndexCache.set(piece, new Set());
+      componentIndexCache.get(piece).add(ch);
+    });
+  });
+  return componentIndexCache;
+}
+function charsWithComponent(piece){ return componentIndex().get(piece) || new Set(); }
+
+// every word whose characters are built from `piece` — the point being that once 亻 has been
+// seen in 你, 他 and 什么, the next unfamiliar 亻 word is already half readable. Matches one
+// level deep, the same level the breakdown cards show: 嫁 counts for 女 and 家 but not for the
+// 宀 nested inside 家, which keeps the families predictable instead of collecting everything
+// that bottoms out in 一. A word also counts when it simply contains the piece as a character.
+function wordsWithComponent(piece, pool){
+  const built = charsWithComponent(piece);
+  return (pool || combinedPool()).filter(w =>
+    Array.from(w.c).some(ch => ch === piece || built.has(ch))
+  );
 }
 
 let words = []; // user's own custom words: { c, p, m, tags }
@@ -305,7 +343,13 @@ let hanziFont = 'serif';
                        // requires selecting all of them + Submit, instead of tap-one-to-answer
 let screen = 'home'; // 'home' | 'quiz' | 'results' | 'settings' | 'addWord'
 let screenBeforeSettings = 'home';
-let screenBeforeWordDetail = 'wordDecks';
+// Word Detail and Component open each other freely — a word's piece, a word from that piece's
+// family, that word's piece again — so the way back is a trail, not a single slot. Each entry
+// restores one earlier view; a lone "where did I come from" variable would bounce between the
+// last two screens forever instead of unwinding to where the detour started.
+let charNavStack = [];
+let familyComponent = null; // the component whose family the Component screen is showing
+let familyTags = new Set(); // that screen's own list filter; empty means every list
 
 /* ---------- Learning Mode: chapter-by-chapter flashcard review (separate from the quiz) ---------- */
 let learningList = null; // built-in list tag currently picked, e.g. 'ES1', or null if none yet
@@ -1412,7 +1456,7 @@ function renderWordGrid(grid, filtered, emptyState, fromScreen){
       <span class="grid-cell-pinyin">${spacedPinyin(w.p)}</span>
       <span class="grid-cell-char">${w.c}</span>
     `;
-    cell.onclick = () => showWordDetail(w, fromScreen);
+    cell.onclick = () => openWordDetailFrom(w, fromScreen);
     grid.appendChild(cell);
   });
 }
@@ -1443,21 +1487,22 @@ function buildWordRow(w, clearField, onCleared, fromScreen){
   if (fromScreen) {
     row.onclick = (e) => {
       if (e.target.closest('.del-btn')) return;
-      showWordDetail(w, fromScreen);
+      openWordDetailFrom(w, fromScreen);
     };
   }
   return row;
 }
 
-// shared by each dedicated progress list screen — progressTags itself stays one global
-// selection (not per-screen), only the control to change it moved off the My Progress hub
-function renderProgressFilterRow(containerId, onChange, tagsOverride){
+// a list-tag filter row bound to whichever Set the calling screen keeps its selection in:
+// progressTags for the 4 My Progress lists (one shared selection between them), familyTags for
+// the component family screen. `tagsOverride` narrows which buttons appear without narrowing
+// what counts as a valid tag.
+function renderTagFilterRow(containerId, selectedTags, onChange, tagsOverride){
   const allTags = sortListTags(new Set(combinedPool().flatMap(w => w.tags)));
   const tags = tagsOverride || allTags;
-  // drop selected tags that no longer exist (e.g. after deleting the last custom word with that
-  // tag) — checked against every valid tag, not just this row's (possibly restricted) button set,
-  // since progressTags is shared across all 4 progress screens
-  progressTags.forEach(t => { if (!allTags.includes(t)) progressTags.delete(t); });
+  // drop selections that no longer exist (e.g. after deleting the last custom word with that
+  // tag) — checked against every valid tag, not just this row's possibly-restricted button set
+  selectedTags.forEach(t => { if (!allTags.includes(t)) selectedTags.delete(t); });
   const row = document.getElementById(containerId);
   row.innerHTML = '';
   let prevTag = null;
@@ -1469,16 +1514,21 @@ function renderProgressFilterRow(containerId, onChange, tagsOverride){
     const cls = tagClass(t);
     if (cls === 'custom-tag') btn.style.setProperty('--tag-hue', tagHue(t));
     const refresh = () => {
-      btn.className = progressTags.has(t) ? `active ${cls}` : '';
+      btn.className = selectedTags.has(t) ? `active ${cls}` : '';
     };
     btn.onclick = () => {
-      if (progressTags.has(t)) progressTags.delete(t); else progressTags.add(t);
+      if (selectedTags.has(t)) selectedTags.delete(t); else selectedTags.add(t);
       refresh();
       onChange();
     };
     refresh();
     row.appendChild(btn);
   });
+}
+// shared by each dedicated progress list screen — progressTags itself stays one global
+// selection (not per-screen), only the control to change it moved off the My Progress hub
+function renderProgressFilterRow(containerId, onChange, tagsOverride){
+  renderTagFilterRow(containerId, progressTags, onChange, tagsOverride);
 }
 
 function progressPool(){
@@ -1670,6 +1720,32 @@ function renderProgressWriting(){
   practiceBtn.classList.toggle('hidden', writingWords.length === 0);
   practiceBtn.textContent = `▶ Practice these words (${writingWords.length})`;
   practiceBtn.onclick = () => { flashcardMode = 'writing'; startFlashcards(writingWords); };
+}
+
+/* ---------- component family: every word built from one component ---------- */
+function renderComponentFamily(){
+  const piece = familyComponent;
+  if (!piece) { charNavBack(); return; }
+  const gloss = componentGloss(piece);
+  const reading = componentPinyin(piece);
+  document.getElementById('componentChar').textContent = piece;
+  document.getElementById('componentPinyin').textContent = reading ? spacedPinyin(reading) : '';
+  document.getElementById('componentGloss').textContent = gloss || '—';
+  document.getElementById('componentSpeakBtn').onclick = () => speak(piece);
+
+  renderTagFilterRow('familyFilterRow', familyTags, renderComponentFamily);
+  const pool = combinedPool().filter(w => familyTags.size === 0 || w.tags.some(t => familyTags.has(t)));
+  const family = wordsWithComponent(piece, pool);
+  applyWordListView('familyList', 'familyGrid', 'familyViewListBtn', 'familyViewGridBtn');
+  const label = document.getElementById('familyCount');
+  label.textContent = family.length
+    ? `${family.length} word${family.length === 1 ? '' : 's'} built from ${piece}`
+    : '';
+  const emptyState = family.length === 0
+    ? `<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words with ${piece} in the selected lists.</div>`
+    : null;
+  renderListOrGrid(family, emptyState, 'familyList', 'familyGrid', 'componentFamily',
+    w => buildWordRow(w, null, null, 'componentFamily'));
 }
 
 // this list filters by memory level (New/Learning/.../Expert) instead of by word list — the
@@ -2284,7 +2360,7 @@ document.getElementById('startBtn').onclick = () => {
 document.getElementById('resumeBtn').onclick = () => showScreen('quiz');
 
 /* ---------- navigation ---------- */
-const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'chapterProgress', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'progressFlashcard', 'progressWriting', 'addWord', 'wordDetail'];
+const SCREENS = ['home', 'learningHome', 'flashcards', 'quiz', 'results', 'settings', 'chapterProgress', 'wordDecks', 'myProgress', 'progressWrong', 'progressDontKnow', 'progressMastered', 'progressFlashcard', 'progressWriting', 'addWord', 'wordDetail', 'componentFamily'];
 function showScreen(name){
   SCREENS.forEach(s => document.getElementById(s + 'Screen').classList.toggle('hidden', s !== name));
   screen = name;
@@ -2307,12 +2383,35 @@ function showScreen(name){
   if (name === 'progressWriting') renderProgressWriting();
   if (name === 'addWord') { renderAddWordLevelOptions(); renderAddWordTopicOptions(); renderAddWordPosOptions(); }
   if (name === 'wordDetail') renderWordDetail();
+  if (name === 'componentFamily') renderComponentFamily();
 }
 
+// arriving from anywhere outside the Word Detail / Component pair starts a fresh trail
 function showWordDetail(w, fromScreen){
+  charNavStack = [() => showScreen(fromScreen || 'wordDecks')];
   detailWord = w;
-  screenBeforeWordDetail = fromScreen || 'wordDecks';
   showScreen('wordDetail');
+}
+// the two screens opening each other stack instead, so back unwinds the whole detour
+function pushWordDetail(w){
+  const piece = familyComponent;
+  charNavStack.push(() => { familyComponent = piece; showScreen('componentFamily'); });
+  detailWord = w;
+  showScreen('wordDetail');
+}
+function pushComponentFamily(piece){
+  const word = detailWord;
+  charNavStack.push(() => { detailWord = word; showScreen('wordDetail'); });
+  familyComponent = piece;
+  showScreen('componentFamily');
+}
+function charNavBack(){
+  const restore = charNavStack.pop();
+  if (restore) restore(); else showScreen('wordDecks');
+}
+// the word lists on both screens share one row builder, so the jump has to pick the right mode
+function openWordDetailFrom(w, fromScreen){
+  if (fromScreen === 'componentFamily') pushWordDetail(w); else showWordDetail(w, fromScreen);
 }
 function renderWordDetail(){
   const w = detailWord;
@@ -2412,6 +2511,8 @@ document.getElementById('masteredViewListBtn').onclick = () => setWordListView('
 document.getElementById('masteredViewGridBtn').onclick = () => setWordListView('grid', renderProgressMastered);
 document.getElementById('flashcardViewListBtn').onclick = () => setWordListView('list', renderProgressFlashcard);
 document.getElementById('flashcardViewGridBtn').onclick = () => setWordListView('grid', renderProgressFlashcard);
+document.getElementById('familyViewListBtn').onclick = () => setWordListView('list', renderComponentFamily);
+document.getElementById('familyViewGridBtn').onclick = () => setWordListView('grid', renderComponentFamily);
 document.getElementById('writingViewListBtn').onclick = () => setWordListView('list', renderProgressWriting);
 document.getElementById('writingViewGridBtn').onclick = () => setWordListView('grid', renderProgressWriting);
 document.getElementById('openChapterProgressBtn').onclick = () => showScreen('chapterProgress');
@@ -2434,7 +2535,8 @@ document.getElementById('openProgressWritingBtn').onclick = () => showScreen('pr
 document.getElementById('progressWritingBackBtn').onclick = () => showScreen('myProgress');
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
-document.getElementById('wordDetailBackBtn').onclick = () => showScreen(screenBeforeWordDetail);
+document.getElementById('wordDetailBackBtn').onclick = charNavBack;
+document.getElementById('componentFamilyBackBtn').onclick = charNavBack;
 document.getElementById('detailStrokeReplayBtn').onclick = () => {
   const c = document.getElementById('detailStrokeAnim');
   if (c._word) renderStrokeAnimation(c, c._word);

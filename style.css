@@ -798,6 +798,10 @@ button.settings-menu-item:hover{ background:var(--surface-1); }
 }
 .cb-piece.semantic{ background:var(--hsk6-bg); color:var(--hsk6-text); }
 .cb-piece.phonetic{ background:var(--hsk2-bg); color:var(--hsk2-text); }
+/* only pieces that actually have a family to show are tappable — see opensFamily() */
+.cb-piece.tappable{ cursor:pointer; box-shadow:inset 0 0 0 1px var(--border-strong); }
+.cb-piece.tappable:hover{ filter:brightness(1.12); }
+.cb-piece.tappable:focus-visible{ outline:2px solid var(--accent-solid); outline-offset:1px; }
 .cb-parts{ display:flex; flex-direction:column; gap:7px; }
 .cb-part{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .cb-part .cb-piece{ font-size:17px; padding:3px 7px; }
