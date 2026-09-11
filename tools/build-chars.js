@@ -100,8 +100,12 @@ const HEADER = `// Character composition data for every hanzi used by the built-
 //      mixes in folk explanations and occasionally describes the simplified form rather than the
 //      character's real history, so present it as a hint and never as a fact.
 //
-// COMPONENTS[piece] = English gloss, for every piece referenced by a CHARS decomposition, so
-// the parts can be labelled (亻 reads as "man, person; people").
+// COMPONENTS[piece] = [gloss, pinyin] for every piece referenced by a CHARS decomposition, so
+// the parts can be labelled: 亻 reads as "man, person; people", 马 as "horse; surname" (mǎ).
+// The pinyin matters most for the sound part of a pictophonetic character — that a 马 in 妈
+// is there for its mǎ is the whole point, and most sound components aren't words the app
+// teaches on their own, so their reading isn't available anywhere else. Either position can
+// be an empty string when the source has no value for it.
 `;
 
 function serialise(name, obj){
@@ -129,7 +133,10 @@ async function main(){
   const components = {};
   for (const piece of [...referenced].sort((a, b) => a.codePointAt(0) - b.codePointAt(0))) {
     const entry = dict.get(piece);
-    if (entry && entry.definition) components[piece] = entry.definition;
+    if (!entry) continue;
+    const gloss = entry.definition || '';
+    const reading = (entry.pinyin && entry.pinyin[0]) || '';
+    if (gloss || reading) components[piece] = [gloss, reading];
   }
 
   fs.writeFileSync(OUT, `${HEADER}${serialise('CHARS', chars)}\n${serialise('COMPONENTS', components)}`);
@@ -141,7 +148,9 @@ async function main(){
   console.log(`  with 2+ parts    : ${withParts}`);
   console.log(`  with sound+sense : ${withRoles}`);
   console.log(`  with a hint      : ${withHint}`);
-  console.log(`components glossed : ${Object.keys(components).length} of ${referenced.size} referenced`);
+  const glossed = Object.values(components).filter((c) => c[0]).length;
+  const withReading = Object.values(components).filter((c) => c[1]).length;
+  console.log(`components         : ${Object.keys(components).length} of ${referenced.size} referenced (${glossed} glossed, ${withReading} with pinyin)`);
   if (missing.length) console.log(`not in dictionary  : ${missing.length} (${missing.join('')})`);
   console.log(`wrote ${path.relative(REPO, OUT)} (${(fs.statSync(OUT).size / 1024).toFixed(0)} KB)`);
 }
