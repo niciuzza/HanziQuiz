@@ -913,6 +913,10 @@ body.hanzi-font-hand .hanzi-font-trigger{ font-family:'Ma Shan Zheng',cursive; f
 
 /* topic and part of speech, as plain chips rather than a labelled row each */
 .detail-attributes{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
+/* on the tinted Word Detail card they belong to the meaning above them, so they borrow the
+   card's own colour instead of introducing a second surface inside it */
+.detail-card .detail-attributes{ justify-content:center; margin:14px 0 0; }
+.detail-card .detail-attribute{ background:transparent; color:inherit; border:1px solid currentColor; opacity:.72; }
 .detail-attributes:empty{ display:none; }
 .detail-attribute{
   font-size:12px; font-weight:600;
