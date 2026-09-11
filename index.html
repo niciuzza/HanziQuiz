@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=105">
+<link rel="stylesheet" href="style.css?v=106">
 </head>
 <body>
   <div class="app">
@@ -232,6 +232,10 @@
         <div class="settings-menu-item">
           <span>Hard mode (multi-meaning words)</span>
           <button class="toggle-switch" id="hardModeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+        </div>
+        <div class="settings-menu-item">
+          <span>Look-alike choices (share a component)</span>
+          <button class="toggle-switch" id="lookAlikeToggle" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
         </div>
         <div class="settings-menu-item settings-menu-item-stack">
           <span>Character font (quiz &amp; flashcards)</span>
@@ -553,9 +557,9 @@
 
   </div>
 
-  <script src="data.js?v=105"></script>
+  <script src="data.js?v=106"></script>
   <!-- character composition data (CHARS/COMPONENTS) — separate file, LGPL v3, see NOTICE.md -->
-  <script src="chars.js?v=105"></script>
-  <script src="script.js?v=105"></script>
+  <script src="chars.js?v=106"></script>
+  <script src="script.js?v=106"></script>
 </body>
 </html>
