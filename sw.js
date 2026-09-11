@@ -12,6 +12,7 @@ const CORE_ASSETS = [
   `./style.css?v=${VERSION}`,
   `./script.js?v=${VERSION}`,
   `./data.js?v=${VERSION}`,
+  `./chars.js?v=${VERSION}`,
   './manifest.json',
   './icons/icon.svg',
   './icons/icon-192.png',
