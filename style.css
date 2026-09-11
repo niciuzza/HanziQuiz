@@ -878,7 +878,21 @@ body.hanzi-font-hand .hanzi-font-trigger{ font-family:'Ma Shan Zheng',cursive; f
 .detail-meta-row{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); font-size:14px; }
 .detail-meta-row:last-child{ border-bottom:none; }
 .detail-meta-label{ color:var(--text-secondary); font-weight:600; }
-.detail-meta-value{ color:var(--text-primary); font-weight:500; }
+.detail-meta-value{ color:var(--text-primary); font-weight:500; display:flex; align-items:center; gap:10px; }
+
+/* topic and part of speech, as plain chips rather than a labelled row each */
+.detail-attributes{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
+.detail-attributes:empty{ display:none; }
+.detail-attribute{
+  font-size:12px; font-weight:600;
+  padding:5px 11px; border-radius:999px;
+  background:var(--surface-1); color:var(--text-secondary);
+}
+/* one line per kind of progress: right, wrong, and the percentage */
+.stat-ok{ color:var(--success-text); font-weight:700; }
+.stat-bad{ color:var(--danger-text); font-weight:700; }
+.stat-pct{ color:var(--text-secondary); }
+.stat-due{ color:var(--text-secondary); }
 
 @media (max-width:480px){
   .word-row .row-meta{ flex-basis:100%; justify-content:flex-end; margin-left:0; }
