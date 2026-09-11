@@ -154,22 +154,45 @@ function quizWriterOptions(size){
     leniency: QUIZ_LENIENCY,
   };
 }
-// Where the writing actually happens. Tapping a box on the card opens that character here, at
-// a size a fingertip can work in, and the finished character drops back into the box. Closing
-// without finishing leaves the card exactly as it was, so a box can be reopened and retried.
+// Where the answering actually happens. Tapping a box on the card opens that character here, in
+// whichever of the two input modes is selected, and the finished character drops back into the
+// box. Closing without finishing leaves the card as it was, so a box can be reopened and retried.
+//
+// Drawing tests the strokes; typing the pinyin tests the reading. They are different questions,
+// so typing mode hides the pinyin the card would otherwise be showing — with it on screen the
+// answer would just be there to copy.
+const WRITING_INPUT_KEY = 'hsk-vocab-writing-input';
+let writingInputMode = 'draw';
+try { if (localStorage.getItem(WRITING_INPUT_KEY) === 'type') writingInputMode = 'type'; } catch (e) {}
 let writingZoomOnClose = null;
-function openWritingZoom(ch, prompt, onMistake, onComplete){
-  const overlay = document.getElementById('writingZoom');
+let writingZoomState = null;
+
+function openWritingZoom(ch, syllable, meaning, onMistake, onComplete){
+  writingZoomState = { ch, syllable: syllable || '', meaning: meaning || '', onMistake, onComplete };
+  document.getElementById('writingZoom').classList.remove('hidden');
+  renderWritingZoom();
+}
+function setWritingInputMode(mode){
+  writingInputMode = mode === 'type' ? 'type' : 'draw';
+  try { localStorage.setItem(WRITING_INPUT_KEY, writingInputMode); } catch (e) {}
+  closeWritingZoom(); // the panel only exists for drawing
+  if (screen === 'flashcards') renderFlashcard();
+}
+function renderWritingZoom(){
+  const st = writingZoomState;
+  if (!st) return;
+  if (writingZoomOnClose) { writingZoomOnClose(); writingZoomOnClose = null; }
   const box = document.getElementById('writingZoomBox');
-  document.getElementById('writingZoomPrompt').textContent = prompt;
   box.innerHTML = '';
-  overlay.classList.remove('hidden');
+  document.getElementById('writingZoomPrompt').textContent =
+    [st.syllable, st.meaning].filter(Boolean).join(' · ');
+
   // square, as large as the panel allows once the header and the note have taken their share
-  const size = Math.round(Math.min(box.getBoundingClientRect().width || 320, window.innerHeight - 220));
+  const size = Math.round(Math.min(box.getBoundingClientRect().width || 320, window.innerHeight - 260));
   const style = getComputedStyle(document.documentElement);
   let writer = null;
   try {
-    writer = HanziWriter.create(box, ch, {
+    writer = HanziWriter.create(box, st.ch, {
       ...quizWriterOptions(size),
       strokeColor: style.getPropertyValue('--text-primary').trim() || '#0f172a',
       radicalColor: style.getPropertyValue('--accent-solid').trim() || '#4f46e5',
@@ -179,14 +202,58 @@ function openWritingZoom(ch, prompt, onMistake, onComplete){
   } catch (e) { closeWritingZoom(); return; }
   writingZoomOnClose = () => { try { writer.cancelQuiz(); } catch (e) {} };
   writer.quiz({
-    onMistake: () => { if (onMistake) onMistake(); },
-    // a beat to see the finished character before the panel gets out of the way — which also
-    // keeps the teardown of the SVG out of HanziWriter's own completion callback
-    onComplete: () => { setTimeout(() => { closeWritingZoom(); if (onComplete) onComplete(); }, 450); },
+    onMistake: () => { if (st.onMistake) st.onMistake(); },
+    onComplete: () => finishWritingZoom(),
   });
+}
+// tones are what a learner gets wrong last and a keyboard types least willingly, so the check is
+// on the letters alone: "hao", "hǎo" and "hao3" all pass for 好, and spacing never matters, so
+// "buhaoyisi" passes for 不好意思 as readily as "bù hǎo yì si"
+function pinyinMatches(typed, expected){
+  const norm = (v) => detone(String(v || '').toLowerCase()).replace(/[^a-z]/g, '');
+  const got = norm(typed);
+  return got.length > 0 && got === norm(expected);
+}
+// Typing mode asks for the word in one go rather than character by character: a word's pinyin is
+// one thing a learner knows or doesn't, and splitting "bu hao yi si" into four prompts asks the
+// same question four times. A word answered without a wrong guess counts as written correctly,
+// matching how the drawing test scores.
+let flashcardTypeMisses = 0;
+// every way into a card clears the typed answer and its wrong guesses — keying off the word
+// alone would carry a previous attempt's misses into the same word met a second time
+function resetFlashcardTyping(){
+  flashcardTypeMisses = 0;
+  const input = document.getElementById('flashcardTypeInput');
+  const msg = document.getElementById('flashcardTypeMsg');
+  if (input) input.value = '';
+  if (msg) msg.textContent = '';
+}
+function submitFlashcardPinyin(e){
+  if (e) e.preventDefault();
+  const w = flashcardPool[flashcardIndex];
+  if (!w || flashcardRevealed) return;
+  const input = document.getElementById('flashcardTypeInput');
+  const msg = document.getElementById('flashcardTypeMsg');
+  if (!input.value.trim()) { msg.textContent = 'Type the pinyin first.'; return; }
+  if (!pinyinMatches(input.value, w.p)) {
+    flashcardTypeMisses++;
+    msg.textContent = 'Not that one — try again.';
+    input.select();
+    return;
+  }
+  const clean = flashcardTypeMisses === 0;
+  msg.textContent = '';
+  rateWritingAndAdvance(clean);
+}
+// a beat to see the finished character before the panel gets out of the way — which also keeps
+// the teardown of the SVG out of HanziWriter's own completion callback
+function finishWritingZoom(){
+  const st = writingZoomState;
+  setTimeout(() => { closeWritingZoom(); if (st && st.onComplete) st.onComplete(); }, 450);
 }
 function closeWritingZoom(){
   if (writingZoomOnClose) { writingZoomOnClose(); writingZoomOnClose = null; }
+  writingZoomState = null;
   document.getElementById('writingZoom').classList.add('hidden');
   document.getElementById('writingZoomBox').innerHTML = '';
 }
@@ -252,8 +319,7 @@ function renderStrokeQuiz(container, w, onWordDone, onReady){
       entry.box.setAttribute('role', 'button');
       entry.box.tabIndex = 0;
       const open = () => {
-        const label = [syllables[i] || '', w.m].filter(Boolean).join(' · ');
-        openWritingZoom(entry.ch, label, () => { totalMistakes++; }, () => {
+        openWritingZoom(entry.ch, syllables[i] || '', w.m, () => { totalMistakes++; }, () => {
           if (container._hwToken !== myToken) return; // card moved on while the overlay was up
           entry.writer.showCharacter();
           entry.box.classList.remove('stroke-quiz-active');
@@ -1352,6 +1418,7 @@ function startFlashcards(pool = learningPool()){
   flashcardPool = pickRandom(pool, pool.length, null);
   flashcardIndex = 0;
   flashcardRevealed = false;
+  resetFlashcardTyping();
   saveFlashcardSession();
   showScreen('flashcards');
 }
@@ -1408,6 +1475,7 @@ function renderFlashcard(){
   // replaced in place by the stroke animation once revealed (see flashcardStrokeAnim below) —
   // see flashcardMode
   const writing = flashcardMode === 'writing';
+  const typing = writing && writingInputMode === 'type';
   const disambigEl = document.getElementById('flashcardDisambig');
   const example = findDisambiguationExample(w);
   // the example embeds the target hanzi itself (e.g. "as in 长度" for 长) — fine to show
@@ -1423,21 +1491,36 @@ function renderFlashcard(){
   // the character-font picker only makes sense where the plain-text hanzi is actually shown —
   // hidden in writing mode entirely, since that mode never shows the plain hanzi at all
   document.getElementById('flashcardFontPicker').classList.toggle('hidden', writing);
-  hint.textContent = writing
-    ? 'Tap a box to write that character — or tap the card to reveal the answer'
-    : 'Tap the card to reveal the answer';
+  hint.textContent = !writing
+    ? 'Tap the card to reveal the answer'
+    : typing
+      ? 'Type the word\u2019s pinyin'
+      : 'Tap a box to write that character';
+  document.getElementById('flashcardRevealBtn').classList.toggle('hidden', !writing || flashcardRevealed);
+  // typing mode asks for the reading, so the card must not be showing it: the word's pinyin and
+  // the syllable under each box both go, and come back the moment the answer is revealed
+  document.body.classList.toggle('writing-hide-pinyin', typing && !flashcardRevealed);
+  const modeBtn = document.getElementById('flashcardInputModeBtn');
+  modeBtn.classList.toggle('hidden', !writing || flashcardRevealed);
+  modeBtn.textContent = typing ? '✍️' : '⌨️';
+  modeBtn.setAttribute('aria-label', typing ? 'Switch to drawing the character' : 'Switch to typing pinyin');
+  const typeForm = document.getElementById('flashcardTypeForm');
+  const showTypeForm = typing && !flashcardRevealed;
+  typeForm.classList.toggle('hidden', !showTypeForm);
   const strokeAnim = document.getElementById('flashcardStrokeAnim');
   const strokeControls = document.getElementById('flashcardStrokeControls');
-  if (!writing) {
+  // the boxes belong to the drawing test only: no boxes in any other mode, and none in typing
+  // mode either, which asks for the whole word in one input instead
+  if (!writing || (typing && !flashcardRevealed)) {
     strokeAnim.classList.add('hidden');
     strokeAnim.innerHTML = '';
     strokeAnim._hwToken = (strokeAnim._hwToken || 0) + 1;
     strokeAnim._quizFor = null;
     strokeControls.classList.add('hidden');
   } else if (!flashcardRevealed) {
-    // writing mode before the reveal: the boxes are the answer sheet — blank canvases the
-    // learner draws on, checked stroke by stroke (see renderStrokeQuiz). Keyed on the word so
-    // repeat render passes don't wipe a half-finished character out from under them.
+    // drawing mode before the reveal: the boxes are the answer sheet, each one tapped to open
+    // the writing panel (see renderStrokeQuiz). Keyed on the word so repeat render passes don't
+    // wipe a half-finished word out from under them.
     const key = statKey(w.c, w.m);
     if (strokeAnim._quizFor !== key) {
       strokeAnim._quizFor = key;
@@ -1485,6 +1568,7 @@ function revealFlashcard(){
 function nextFlashcard(){
   flashcardIndex++;
   flashcardRevealed = false;
+  resetFlashcardTyping();
   saveFlashcardSession();
   renderFlashcard();
 }
@@ -1504,7 +1588,11 @@ function rateWritingAndAdvance(correct){
   bumpStat(w.c, w.m, correct ? 'writeCorrect' : 'writeWrong');
   nextFlashcard();
 }
-document.getElementById('flashcardCard').onclick = revealFlashcard;
+// In writing mode the card is full of things to tap — the boxes that open the writing panel,
+// the pinyin input — so a tap on the card cannot also mean "give up and show me". That mode
+// gets an explicit button instead; character mode keeps the tap it has always had.
+document.getElementById('flashcardCard').onclick = () => { if (flashcardMode !== 'writing') revealFlashcard(); };
+document.getElementById('flashcardRevealBtn').onclick = revealFlashcard;
 document.getElementById('flashcardRateUnknownBtn').onclick = () => rateAndAdvance('unknown');
 document.getElementById('flashcardRateHesitantBtn').onclick = () => rateAndAdvance('hesitant');
 document.getElementById('flashcardRateInstantBtn').onclick = () => rateAndAdvance('instant');
@@ -2769,6 +2857,11 @@ document.getElementById('progressWritingBackBtn').onclick = () => showScreen('my
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('writingZoomCloseBtn').onclick = closeWritingZoom;
+document.getElementById('flashcardTypeForm').onsubmit = submitFlashcardPinyin;
+document.getElementById('flashcardInputModeBtn').onclick = (e) => {
+  e.stopPropagation(); // the card's own click means "reveal the answer"
+  setWritingInputMode(writingInputMode === 'type' ? 'draw' : 'type');
+};
 // backdrop only, and only when the press started there too: a stroke drawn from inside the box
 // that lifts outside it delivers its click to the overlay, which would otherwise read as
 // "tapped the backdrop" and close mid-character
