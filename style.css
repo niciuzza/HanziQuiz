@@ -256,7 +256,9 @@ input::placeholder{ color:var(--text-muted); }
 .flashcard-card .q-main{ font-size:120px; margin-bottom:18px; }
 .flashcard-card .detail-pinyin{ font-size:22px; }
 .flashcard-card .detail-meaning{ font-size:23px; }
-.flashcard-hint{ font-size:1.75em; font-weight:600; color:var(--text-muted); text-align:center; margin:14px 0 0; }
+/* an instruction, not a headline: it used to be set at 1.75em, which made the sentence under the
+   card louder than the word being studied */
+.flashcard-hint{ font-size:13px; font-weight:600; color:var(--text-muted); text-align:center; margin:14px 0 0; }
 .flashcard-disambig{ font-size:20px; color:var(--text-muted); margin:0 0 4px; }
 .flashcard-disambig b{ color:var(--text-secondary); font-weight:700; }
 .flashcard-done{ text-align:center; padding:60px 20px 40px; }
@@ -336,11 +338,64 @@ input::placeholder{ color:var(--text-muted); }
 .stroke-anim-char.stroke-anim-missing{ opacity:.35; }
 /* the writing test's blank boxes — dashed until it's that character's turn, solid while it is.
    touch-action:none so drawing a stroke on a phone doesn't scroll the page instead */
+/* The writing panel: tapping a box on the card opens the character it is waiting on here, at a
+   size a fingertip can actually draw a dozen strokes in */
+.writing-zoom{
+  position:fixed; inset:0; z-index:60;
+  display:flex; align-items:center; justify-content:center;
+  padding:16px;
+  background:rgba(15,23,42,.72);
+  backdrop-filter:blur(2px);
+}
+.writing-zoom-panel{
+  width:100%; max-width:460px;
+  background:var(--surface-2);
+  border-radius:var(--radius-lg);
+  padding:14px 16px 18px;
+  box-shadow:0 18px 48px rgba(0,0,0,.35);
+}
+.writing-zoom-head{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.writing-zoom-prompt{ font-size:17px; font-weight:700; color:var(--text-primary); }
+.writing-zoom-head .icon-btn{ margin-left:auto; }
+.writing-zoom-box{
+  margin:0 auto;
+  border:2px dashed var(--border-strong);
+  border-radius:var(--radius-lg);
+  background:var(--surface-1);
+  touch-action:none;
+  cursor:crosshair;
+  display:flex; align-items:center; justify-content:center;
+}
+.writing-zoom-note{ margin:12px 0 0; font-size:12px; color:var(--text-muted); text-align:center; }
+.flashcard-reveal-btn{ display:block; margin:10px auto 0; }
+/* typing mode's answer box, on the card in place of the drawing boxes */
+.writing-type-form{ display:flex; flex-wrap:wrap; gap:8px; width:100%; margin:6px 0 2px; }
+.writing-type-input{
+  flex:1 1 120px;
+  padding:12px 14px;
+  font-size:17px;
+  border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--surface-1); color:var(--text-primary);
+}
+.writing-type-input:focus{ outline:2px solid var(--accent-solid); outline-offset:1px; }
+.writing-type-submit{ flex:0 0 auto; padding:12px 18px; }
+.writing-type-msg{ flex:1 0 100%; margin:0; min-height:16px; font-size:13px; color:var(--danger-text); text-align:center; }
+.writing-type-msg.ok{ color:var(--success-text); }
+/* the mode switch sits beside the speaker, so it is reachable mid-card rather than in settings */
+#flashcardInputModeBtn{ right:52px; }
+
+/* the box the card is waiting on is the one you tap to open the big writing panel */
+.stroke-quiz-char.stroke-quiz-active{ cursor:pointer; }
+.stroke-quiz-char.stroke-quiz-active:focus-visible{ outline:2px solid var(--accent-solid); outline-offset:2px; }
+
+/* the quiz row is sized in JS (see quizBoxSize) — the gap here is QUIZ_BOX_GAP, and the row's
+   max-width caps it at two boxes so the rest wrap onto the next line */
+.stroke-quiz-row{ gap:8px; margin:0 auto; }
 .stroke-quiz-char{
   border:2px dashed var(--border-strong);
   border-radius:var(--radius);
   background:var(--surface-2);
-  cursor:crosshair;
+  cursor:default;
   touch-action:none;
 }
 .stroke-quiz-char.stroke-quiz-active{ border-style:solid; border-color:var(--accent-solid); }

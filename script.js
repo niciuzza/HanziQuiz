@@ -126,6 +126,134 @@ function renderStrokeAnimation(container, w, onDone){
 // scored automatically once the last character is finished. `onWordDone(totalMistakes)` fires
 // then; `onReady(success)` fires once loading resolves either way, like renderStrokeAnimation's
 // onDone, so the caller can fall back to self-grading when the CDN is unreachable.
+// HanziWriter grades a stroke against where the real one falls; at the default 1 a fingertip
+// drawing freehand, with no outline to trace, gets marked wrong for strokes that are perfectly
+// recognisable. The point of this mode is recalling which strokes a character has and in what
+// order, not hitting them to the pixel, so the test is loosened.
+const QUIZ_LENIENCY = 1.6;
+// The boxes on the card only hold finished characters — the writing itself happens in the
+// overlay — so they are sized to keep the whole word on one line and the card compact, rather
+// than to be drawn in. A four-character idiom gets four smaller boxes, not a card four boxes tall.
+const QUIZ_BOX_GAP = 8;
+const QUIZ_BOX_BORDER = 4; // the 2px dashed border on each side of .stroke-quiz-char
+const QUIZ_BOX_MIN = 62;
+const QUIZ_BOX_MAX = 110;
+function quizBoxSize(container, charCount){
+  const avail = container.getBoundingClientRect().width || 320;
+  // the size is the SVG's, and the box wears a 2px dashed border outside it, so each box takes
+  // QUIZ_BOX_BORDER more room than it is told to be. One extra gap on top: a row that comes to
+  // exactly the available width still wraps its last box onto a line of its own.
+  const fits = Math.floor((avail - QUIZ_BOX_GAP * charCount) / charCount) - QUIZ_BOX_BORDER;
+  return Math.max(QUIZ_BOX_MIN, Math.min(QUIZ_BOX_MAX, fits));
+}
+function quizWriterOptions(size){
+  return {
+    width: size, height: size, padding: Math.round(size / 18),
+    showCharacter: false, showOutline: false, // recall, not tracing
+    showHintAfterMisses: 3,
+    leniency: QUIZ_LENIENCY,
+  };
+}
+// Where the answering actually happens. Tapping a box on the card opens that character here, in
+// whichever of the two input modes is selected, and the finished character drops back into the
+// box. Closing without finishing leaves the card as it was, so a box can be reopened and retried.
+//
+// Drawing tests the strokes; typing the pinyin tests the reading. They are different questions,
+// so typing mode hides the pinyin the card would otherwise be showing — with it on screen the
+// answer would just be there to copy.
+const WRITING_INPUT_KEY = 'hsk-vocab-writing-input';
+let writingInputMode = 'draw';
+try { if (localStorage.getItem(WRITING_INPUT_KEY) === 'type') writingInputMode = 'type'; } catch (e) {}
+let writingZoomOnClose = null;
+let writingZoomState = null;
+
+function openWritingZoom(ch, syllable, meaning, onMistake, onComplete){
+  writingZoomState = { ch, syllable: syllable || '', meaning: meaning || '', onMistake, onComplete };
+  document.getElementById('writingZoom').classList.remove('hidden');
+  renderWritingZoom();
+}
+function setWritingInputMode(mode){
+  writingInputMode = mode === 'type' ? 'type' : 'draw';
+  try { localStorage.setItem(WRITING_INPUT_KEY, writingInputMode); } catch (e) {}
+  closeWritingZoom(); // the panel only exists for drawing
+  if (screen === 'flashcards') renderFlashcard();
+}
+function renderWritingZoom(){
+  const st = writingZoomState;
+  if (!st) return;
+  if (writingZoomOnClose) { writingZoomOnClose(); writingZoomOnClose = null; }
+  const box = document.getElementById('writingZoomBox');
+  box.innerHTML = '';
+  document.getElementById('writingZoomPrompt').textContent =
+    [st.syllable, st.meaning].filter(Boolean).join(' · ');
+
+  // square, as large as the panel allows once the header and the note have taken their share
+  const size = Math.round(Math.min(box.getBoundingClientRect().width || 320, window.innerHeight - 260));
+  const style = getComputedStyle(document.documentElement);
+  let writer = null;
+  try {
+    writer = HanziWriter.create(box, st.ch, {
+      ...quizWriterOptions(size),
+      strokeColor: style.getPropertyValue('--text-primary').trim() || '#0f172a',
+      radicalColor: style.getPropertyValue('--accent-solid').trim() || '#4f46e5',
+      outlineColor: style.getPropertyValue('--border').trim() || '#e2e8f0',
+      drawingColor: style.getPropertyValue('--accent-solid').trim() || '#4f46e5',
+    });
+  } catch (e) { closeWritingZoom(); return; }
+  writingZoomOnClose = () => { try { writer.cancelQuiz(); } catch (e) {} };
+  writer.quiz({
+    onMistake: () => { if (st.onMistake) st.onMistake(); },
+    onComplete: () => finishWritingZoom(),
+  });
+}
+// Typing mode asks the same question the drawing test asks — produce the characters — with a
+// keyboard instead of a fingertip, so it wants a Chinese input method on the device. The word is
+// asked in one go rather than character by character, and the pinyin stays on the card, where it
+// is the cue it has always been rather than the answer.
+//
+// Checking scores the attempt (right first time counts as written correctly, matching the
+// drawing test) and then shows the answer, so a wrong guess is worth something: the character
+// the learner was reaching for is right there, animated, before the next word.
+let flashcardTypeMisses = 0;
+let flashcardTypeChecked = false;
+// every way into a card clears the typed answer and its wrong guesses — keying off the word
+// alone would carry a previous attempt's misses into the same word met a second time
+function resetFlashcardTyping(){
+  flashcardTypeMisses = 0;
+  flashcardTypeChecked = false;
+  const input = document.getElementById('flashcardTypeInput');
+  const msg = document.getElementById('flashcardTypeMsg');
+  if (input) input.value = '';
+  if (msg) msg.textContent = '';
+}
+function submitTypedCharacters(e){
+  if (e) e.preventDefault();
+  const w = flashcardPool[flashcardIndex];
+  if (!w || flashcardRevealed) return;
+  const input = document.getElementById('flashcardTypeInput');
+  const msg = document.getElementById('flashcardTypeMsg');
+  const typed = input.value.replace(/\s+/g, '');
+  if (!typed) { msg.textContent = 'Type the characters first.'; return; }
+  const correct = typed === w.c.replace(/\s+/g, '');
+  bumpStat(w.c, w.m, correct ? 'writeCorrect' : 'writeWrong');
+  msg.textContent = correct ? '' : `Not quite — you wrote ${input.value.trim()}`;
+  msg.classList.toggle('ok', correct);
+  flashcardTypeChecked = true;
+  revealFlashcard(); // the answer, with its stroke animation, is the point of checking
+}
+// a beat to see the finished character before the panel gets out of the way — which also keeps
+// the teardown of the SVG out of HanziWriter's own completion callback
+function finishWritingZoom(){
+  const st = writingZoomState;
+  setTimeout(() => { closeWritingZoom(); if (st && st.onComplete) st.onComplete(); }, 450);
+}
+function closeWritingZoom(){
+  if (writingZoomOnClose) { writingZoomOnClose(); writingZoomOnClose = null; }
+  writingZoomState = null;
+  document.getElementById('writingZoom').classList.add('hidden');
+  document.getElementById('writingZoomBox').innerHTML = '';
+}
+
 function renderStrokeQuiz(container, w, onWordDone, onReady){
   container.innerHTML = '';
   container._word = w;
@@ -141,8 +269,9 @@ function renderStrokeQuiz(container, w, onWordDone, onReady){
     const chars = Array.from(w.c);
     const syllables = spacedPinyin(w.p).split(' ');
     const rowEl = document.createElement('div');
-    rowEl.className = 'stroke-anim-row';
+    rowEl.className = 'stroke-anim-row stroke-quiz-row';
     container.appendChild(rowEl);
+    const size = quizBoxSize(container, chars.length);
     // no meaning caption here, unlike the demo — the card's own prompt (flashcardRevealInfo)
     // is already showing meaning+pinyin while the learner writes
     const entries = chars.map((ch, i) => {
@@ -150,19 +279,18 @@ function renderStrokeQuiz(container, w, onWordDone, onReady){
       pair.className = 'stroke-anim-pair';
       const box = document.createElement('div');
       box.className = 'stroke-anim-char stroke-quiz-char';
+      box.style.width = box.style.height = `${size}px`;
       pair.appendChild(box);
       const pinyinEl = document.createElement('span');
       pinyinEl.className = 'stroke-anim-pinyin';
       pinyinEl.textContent = chars.length === syllables.length ? syllables[i] : '';
       pair.appendChild(pinyinEl);
       rowEl.appendChild(pair);
-      const entry = { writer: null, box };
+      const entry = { writer: null, box, ch };
       try {
         entry.writer = HanziWriter.create(box, ch, {
-          width: 90, height: 90, padding: 5,
+          ...quizWriterOptions(size),
           strokeColor, radicalColor: highlightColor, outlineColor, drawingColor: highlightColor,
-          showCharacter: false, showOutline: false, // recall, not tracing
-          showHintAfterMisses: 3,
           onLoadCharDataError: () => { box.classList.add('stroke-anim-missing'); },
         });
       } catch (e) { box.classList.add('stroke-anim-missing'); }
@@ -174,19 +302,31 @@ function renderStrokeQuiz(container, w, onWordDone, onReady){
       container.addEventListener(evt, (e) => e.stopPropagation());
     });
     let totalMistakes = 0;
+    // The boxes on the card are the answer sheet, not the writing surface: a card-sized box is
+    // too small to draw a dozen strokes in with a fingertip, and a three or four character word
+    // makes each one smaller still. Tapping the box the card is waiting on opens it full-size,
+    // and the finished character drops back into the box on the card.
     function quizFrom(i){
       if (container._hwToken !== myToken) return; // container reused for another card — stop
       if (i >= entries.length) { if (onWordDone) onWordDone(totalMistakes); return; }
       const entry = entries[i];
       if (!entry.writer) { quizFrom(i + 1); return; } // this char's data failed — skip, don't stall
       entry.box.classList.add('stroke-quiz-active');
-      entry.writer.quiz({
-        onMistake: () => { totalMistakes++; },
-        onComplete: () => {
+      entry.box.setAttribute('role', 'button');
+      entry.box.tabIndex = 0;
+      const open = () => {
+        openWritingZoom(entry.ch, syllables[i] || '', w.m, () => { totalMistakes++; }, () => {
+          if (container._hwToken !== myToken) return; // card moved on while the overlay was up
+          entry.writer.showCharacter();
           entry.box.classList.remove('stroke-quiz-active');
+          entry.box.removeAttribute('role');
+          entry.box.removeAttribute('tabindex');
+          entry.box.onclick = null;
           quizFrom(i + 1);
-        },
-      });
+        });
+      };
+      entry.box.onclick = open;
+      entry.box.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
     }
     quizFrom(0);
     if (onReady) onReady(true);
@@ -1274,6 +1414,7 @@ function startFlashcards(pool = learningPool()){
   flashcardPool = pickRandom(pool, pool.length, null);
   flashcardIndex = 0;
   flashcardRevealed = false;
+  resetFlashcardTyping();
   saveFlashcardSession();
   showScreen('flashcards');
 }
@@ -1288,6 +1429,9 @@ function renderFlashcard(){
     hint.classList.add('hidden');
     rateRow.classList.add('hidden');
     writingRateRow.classList.add('hidden');
+    document.getElementById('flashcardRevealBtn').classList.add('hidden');
+    document.getElementById('flashcardNextBtn').classList.add('hidden');
+    document.getElementById('flashcardInputModeBtn').classList.add('hidden');
     doneBox.classList.remove('hidden');
     document.getElementById('flashcardDoneText').textContent =
       `You've reviewed all ${flashcardPool.length} word${flashcardPool.length === 1 ? '' : 's'} in this selection.`;
@@ -1330,6 +1474,7 @@ function renderFlashcard(){
   // replaced in place by the stroke animation once revealed (see flashcardStrokeAnim below) —
   // see flashcardMode
   const writing = flashcardMode === 'writing';
+  const typing = writing && writingInputMode === 'type';
   const disambigEl = document.getElementById('flashcardDisambig');
   const example = findDisambiguationExample(w);
   // the example embeds the target hanzi itself (e.g. "as in 长度" for 长) — fine to show
@@ -1341,25 +1486,40 @@ function renderFlashcard(){
   document.getElementById('flashcardRevealInfo').classList.toggle('hidden', writing ? flashcardRevealed : !flashcardRevealed);
   hint.classList.toggle('hidden', flashcardRevealed);
   rateRow.classList.toggle('hidden', writing || !flashcardRevealed);
-  writingRateRow.classList.toggle('hidden', !writing || !flashcardRevealed);
+  // a typed answer has already been marked right or wrong by comparison, so the self-grade
+  // buttons would score the same word twice — it gets a plain "next" instead
+  writingRateRow.classList.toggle('hidden', !writing || !flashcardRevealed || flashcardTypeChecked);
+  document.getElementById('flashcardNextBtn').classList.toggle('hidden', !flashcardTypeChecked || !flashcardRevealed);
   // the character-font picker only makes sense where the plain-text hanzi is actually shown —
   // hidden in writing mode entirely, since that mode never shows the plain hanzi at all
   document.getElementById('flashcardFontPicker').classList.toggle('hidden', writing);
-  hint.textContent = writing
-    ? 'Write the character(s) above — or tap the card to reveal the answer'
-    : 'Tap the card to reveal the answer';
+  hint.textContent = !writing
+    ? 'Tap the card to reveal the answer'
+    : typing
+      ? 'Type the characters — needs a Chinese keyboard on this device'
+      : 'Tap a box to write that character';
+  document.getElementById('flashcardRevealBtn').classList.toggle('hidden', !writing || flashcardRevealed);
+  const modeBtn = document.getElementById('flashcardInputModeBtn');
+  modeBtn.classList.toggle('hidden', !writing || flashcardRevealed);
+  modeBtn.textContent = typing ? '✍️' : '⌨️';
+  modeBtn.setAttribute('aria-label', typing ? 'Switch to drawing the character' : 'Switch to typing pinyin');
+  const typeForm = document.getElementById('flashcardTypeForm');
+  const showTypeForm = typing && !flashcardRevealed;
+  typeForm.classList.toggle('hidden', !showTypeForm);
   const strokeAnim = document.getElementById('flashcardStrokeAnim');
   const strokeControls = document.getElementById('flashcardStrokeControls');
-  if (!writing) {
+  // the boxes belong to the drawing test only: no boxes in any other mode, and none in typing
+  // mode either, which asks for the whole word in one input instead
+  if (!writing || (typing && !flashcardRevealed)) {
     strokeAnim.classList.add('hidden');
     strokeAnim.innerHTML = '';
     strokeAnim._hwToken = (strokeAnim._hwToken || 0) + 1;
     strokeAnim._quizFor = null;
     strokeControls.classList.add('hidden');
   } else if (!flashcardRevealed) {
-    // writing mode before the reveal: the boxes are the answer sheet — blank canvases the
-    // learner draws on, checked stroke by stroke (see renderStrokeQuiz). Keyed on the word so
-    // repeat render passes don't wipe a half-finished character out from under them.
+    // drawing mode before the reveal: the boxes are the answer sheet, each one tapped to open
+    // the writing panel (see renderStrokeQuiz). Keyed on the word so repeat render passes don't
+    // wipe a half-finished word out from under them.
     const key = statKey(w.c, w.m);
     if (strokeAnim._quizFor !== key) {
       strokeAnim._quizFor = key;
@@ -1385,7 +1545,7 @@ function startWritingQuiz(container, w){
   });
 }
 function revealFlashcard(){
-  if (flashcardRevealed) return;
+  if (flashcardRevealed || flashcardIndex >= flashcardPool.length) return;
   flashcardRevealed = true;
   saveFlashcardSession();
   renderFlashcard();
@@ -1407,6 +1567,7 @@ function revealFlashcard(){
 function nextFlashcard(){
   flashcardIndex++;
   flashcardRevealed = false;
+  resetFlashcardTyping();
   saveFlashcardSession();
   renderFlashcard();
 }
@@ -1426,7 +1587,11 @@ function rateWritingAndAdvance(correct){
   bumpStat(w.c, w.m, correct ? 'writeCorrect' : 'writeWrong');
   nextFlashcard();
 }
-document.getElementById('flashcardCard').onclick = revealFlashcard;
+// In writing mode the card is full of things to tap — the boxes that open the writing panel,
+// the pinyin input — so a tap on the card cannot also mean "give up and show me". That mode
+// gets an explicit button instead; character mode keeps the tap it has always had.
+document.getElementById('flashcardCard').onclick = () => { if (flashcardMode !== 'writing') revealFlashcard(); };
+document.getElementById('flashcardRevealBtn').onclick = revealFlashcard;
 document.getElementById('flashcardRateUnknownBtn').onclick = () => rateAndAdvance('unknown');
 document.getElementById('flashcardRateHesitantBtn').onclick = () => rateAndAdvance('hesitant');
 document.getElementById('flashcardRateInstantBtn').onclick = () => rateAndAdvance('instant');
@@ -2690,6 +2855,27 @@ document.getElementById('openProgressWritingBtn').onclick = () => showScreen('pr
 document.getElementById('progressWritingBackBtn').onclick = () => showScreen('myProgress');
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
+document.getElementById('writingZoomCloseBtn').onclick = closeWritingZoom;
+document.getElementById('flashcardTypeForm').onsubmit = submitTypedCharacters;
+document.getElementById('flashcardNextBtn').onclick = nextFlashcard;
+document.getElementById('flashcardInputModeBtn').onclick = (e) => {
+  e.stopPropagation(); // the card's own click means "reveal the answer"
+  setWritingInputMode(writingInputMode === 'type' ? 'draw' : 'type');
+};
+// backdrop only, and only when the press started there too: a stroke drawn from inside the box
+// that lifts outside it delivers its click to the overlay, which would otherwise read as
+// "tapped the backdrop" and close mid-character
+let writingZoomPressTarget = null;
+document.getElementById('writingZoom').addEventListener('pointerdown', (e) => {
+  writingZoomPressTarget = e.target;
+});
+document.getElementById('writingZoom').onclick = (e) => {
+  if (e.target.id === 'writingZoom' && writingZoomPressTarget === e.target) closeWritingZoom();
+  writingZoomPressTarget = null;
+};
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !document.getElementById('writingZoom').classList.contains('hidden')) closeWritingZoom();
+});
 document.getElementById('wordDetailBackBtn').onclick = charNavBack;
 document.getElementById('componentFamilyBackBtn').onclick = charNavBack;
 document.getElementById('detailStrokeReplayBtn').onclick = () => {
