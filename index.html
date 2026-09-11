@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=131">
+<link rel="stylesheet" href="style.css?v=135">
 </head>
 <body>
   <div class="app">
@@ -122,7 +122,7 @@
         <div class="q-main" id="flashcardChar">-</div>
         <div class="stroke-anim-container hidden" id="flashcardStrokeAnim"></div>
         <form class="writing-type-form hidden" id="flashcardTypeForm">
-          <input id="flashcardTypeInput" class="writing-type-input" placeholder="pinyin for the whole word" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <input id="flashcardTypeInput" class="writing-type-input hanzi-input" placeholder="type the characters" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
           <button type="submit" class="primary-btn writing-type-submit">Check</button>
           <p class="writing-type-msg" id="flashcardTypeMsg"></p>
         </form>
@@ -134,6 +134,7 @@
       </div>
       <p class="flashcard-hint" id="flashcardRevealHint">Tap the card to reveal the answer</p>
       <button class="outline-btn flashcard-reveal-btn hidden" id="flashcardRevealBtn">Show the answer</button>
+      <button class="primary-btn flashcard-reveal-btn hidden" id="flashcardNextBtn">Next word</button>
 
       <div class="flashcard-rate-row hidden" id="flashcardRateRow">
         <button id="flashcardRateUnknownBtn" class="flashcard-rate-btn rate-unknown">😵 Didn't know</button>
@@ -574,9 +575,9 @@
 
   </div>
 
-  <script src="data.js?v=131"></script>
+  <script src="data.js?v=135"></script>
   <!-- character composition data (CHARS/COMPONENTS) — separate file, LGPL v3, see NOTICE.md -->
-  <script src="chars.js?v=131"></script>
-  <script src="script.js?v=131"></script>
+  <script src="chars.js?v=135"></script>
+  <script src="script.js?v=135"></script>
 </body>
 </html>

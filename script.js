@@ -206,44 +206,40 @@ function renderWritingZoom(){
     onComplete: () => finishWritingZoom(),
   });
 }
-// tones are what a learner gets wrong last and a keyboard types least willingly, so the check is
-// on the letters alone: "hao", "hǎo" and "hao3" all pass for 好, and spacing never matters, so
-// "buhaoyisi" passes for 不好意思 as readily as "bù hǎo yì si"
-function pinyinMatches(typed, expected){
-  const norm = (v) => detone(String(v || '').toLowerCase()).replace(/[^a-z]/g, '');
-  const got = norm(typed);
-  return got.length > 0 && got === norm(expected);
-}
-// Typing mode asks for the word in one go rather than character by character: a word's pinyin is
-// one thing a learner knows or doesn't, and splitting "bu hao yi si" into four prompts asks the
-// same question four times. A word answered without a wrong guess counts as written correctly,
-// matching how the drawing test scores.
+// Typing mode asks the same question the drawing test asks — produce the characters — with a
+// keyboard instead of a fingertip, so it wants a Chinese input method on the device. The word is
+// asked in one go rather than character by character, and the pinyin stays on the card, where it
+// is the cue it has always been rather than the answer.
+//
+// Checking scores the attempt (right first time counts as written correctly, matching the
+// drawing test) and then shows the answer, so a wrong guess is worth something: the character
+// the learner was reaching for is right there, animated, before the next word.
 let flashcardTypeMisses = 0;
+let flashcardTypeChecked = false;
 // every way into a card clears the typed answer and its wrong guesses — keying off the word
 // alone would carry a previous attempt's misses into the same word met a second time
 function resetFlashcardTyping(){
   flashcardTypeMisses = 0;
+  flashcardTypeChecked = false;
   const input = document.getElementById('flashcardTypeInput');
   const msg = document.getElementById('flashcardTypeMsg');
   if (input) input.value = '';
   if (msg) msg.textContent = '';
 }
-function submitFlashcardPinyin(e){
+function submitTypedCharacters(e){
   if (e) e.preventDefault();
   const w = flashcardPool[flashcardIndex];
   if (!w || flashcardRevealed) return;
   const input = document.getElementById('flashcardTypeInput');
   const msg = document.getElementById('flashcardTypeMsg');
-  if (!input.value.trim()) { msg.textContent = 'Type the pinyin first.'; return; }
-  if (!pinyinMatches(input.value, w.p)) {
-    flashcardTypeMisses++;
-    msg.textContent = 'Not that one — try again.';
-    input.select();
-    return;
-  }
-  const clean = flashcardTypeMisses === 0;
-  msg.textContent = '';
-  rateWritingAndAdvance(clean);
+  const typed = input.value.replace(/\s+/g, '');
+  if (!typed) { msg.textContent = 'Type the characters first.'; return; }
+  const correct = typed === w.c.replace(/\s+/g, '');
+  bumpStat(w.c, w.m, correct ? 'writeCorrect' : 'writeWrong');
+  msg.textContent = correct ? '' : `Not quite — you wrote ${input.value.trim()}`;
+  msg.classList.toggle('ok', correct);
+  flashcardTypeChecked = true;
+  revealFlashcard(); // the answer, with its stroke animation, is the point of checking
 }
 // a beat to see the finished character before the panel gets out of the way — which also keeps
 // the teardown of the SVG out of HanziWriter's own completion callback
@@ -1433,6 +1429,9 @@ function renderFlashcard(){
     hint.classList.add('hidden');
     rateRow.classList.add('hidden');
     writingRateRow.classList.add('hidden');
+    document.getElementById('flashcardRevealBtn').classList.add('hidden');
+    document.getElementById('flashcardNextBtn').classList.add('hidden');
+    document.getElementById('flashcardInputModeBtn').classList.add('hidden');
     doneBox.classList.remove('hidden');
     document.getElementById('flashcardDoneText').textContent =
       `You've reviewed all ${flashcardPool.length} word${flashcardPool.length === 1 ? '' : 's'} in this selection.`;
@@ -1487,19 +1486,19 @@ function renderFlashcard(){
   document.getElementById('flashcardRevealInfo').classList.toggle('hidden', writing ? flashcardRevealed : !flashcardRevealed);
   hint.classList.toggle('hidden', flashcardRevealed);
   rateRow.classList.toggle('hidden', writing || !flashcardRevealed);
-  writingRateRow.classList.toggle('hidden', !writing || !flashcardRevealed);
+  // a typed answer has already been marked right or wrong by comparison, so the self-grade
+  // buttons would score the same word twice — it gets a plain "next" instead
+  writingRateRow.classList.toggle('hidden', !writing || !flashcardRevealed || flashcardTypeChecked);
+  document.getElementById('flashcardNextBtn').classList.toggle('hidden', !flashcardTypeChecked || !flashcardRevealed);
   // the character-font picker only makes sense where the plain-text hanzi is actually shown —
   // hidden in writing mode entirely, since that mode never shows the plain hanzi at all
   document.getElementById('flashcardFontPicker').classList.toggle('hidden', writing);
   hint.textContent = !writing
     ? 'Tap the card to reveal the answer'
     : typing
-      ? 'Type the word\u2019s pinyin'
+      ? 'Type the characters — needs a Chinese keyboard on this device'
       : 'Tap a box to write that character';
   document.getElementById('flashcardRevealBtn').classList.toggle('hidden', !writing || flashcardRevealed);
-  // typing mode asks for the reading, so the card must not be showing it: the word's pinyin and
-  // the syllable under each box both go, and come back the moment the answer is revealed
-  document.body.classList.toggle('writing-hide-pinyin', typing && !flashcardRevealed);
   const modeBtn = document.getElementById('flashcardInputModeBtn');
   modeBtn.classList.toggle('hidden', !writing || flashcardRevealed);
   modeBtn.textContent = typing ? '✍️' : '⌨️';
@@ -1546,7 +1545,7 @@ function startWritingQuiz(container, w){
   });
 }
 function revealFlashcard(){
-  if (flashcardRevealed) return;
+  if (flashcardRevealed || flashcardIndex >= flashcardPool.length) return;
   flashcardRevealed = true;
   saveFlashcardSession();
   renderFlashcard();
@@ -2857,7 +2856,8 @@ document.getElementById('progressWritingBackBtn').onclick = () => showScreen('my
 document.getElementById('openAddWordBtn').onclick = () => showScreen('addWord');
 document.getElementById('addWordBackBtn').onclick = () => showScreen('wordDecks');
 document.getElementById('writingZoomCloseBtn').onclick = closeWritingZoom;
-document.getElementById('flashcardTypeForm').onsubmit = submitFlashcardPinyin;
+document.getElementById('flashcardTypeForm').onsubmit = submitTypedCharacters;
+document.getElementById('flashcardNextBtn').onclick = nextFlashcard;
 document.getElementById('flashcardInputModeBtn').onclick = (e) => {
   e.stopPropagation(); // the card's own click means "reveal the answer"
   setWritingInputMode(writingInputMode === 'type' ? 'draw' : 'type');

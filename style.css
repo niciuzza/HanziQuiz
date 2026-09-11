@@ -256,7 +256,9 @@ input::placeholder{ color:var(--text-muted); }
 .flashcard-card .q-main{ font-size:120px; margin-bottom:18px; }
 .flashcard-card .detail-pinyin{ font-size:22px; }
 .flashcard-card .detail-meaning{ font-size:23px; }
-.flashcard-hint{ font-size:1.75em; font-weight:600; color:var(--text-muted); text-align:center; margin:14px 0 0; }
+/* an instruction, not a headline: it used to be set at 1.75em, which made the sentence under the
+   card louder than the word being studied */
+.flashcard-hint{ font-size:13px; font-weight:600; color:var(--text-muted); text-align:center; margin:14px 0 0; }
 .flashcard-disambig{ font-size:20px; color:var(--text-muted); margin:0 0 4px; }
 .flashcard-disambig b{ color:var(--text-secondary); font-weight:700; }
 .flashcard-done{ text-align:center; padding:60px 20px 40px; }
@@ -378,11 +380,10 @@ input::placeholder{ color:var(--text-muted); }
 .writing-type-input:focus{ outline:2px solid var(--accent-solid); outline-offset:1px; }
 .writing-type-submit{ flex:0 0 auto; padding:12px 18px; }
 .writing-type-msg{ flex:1 0 100%; margin:0; min-height:16px; font-size:13px; color:var(--danger-text); text-align:center; }
+.writing-type-msg.ok{ color:var(--success-text); }
 /* the mode switch sits beside the speaker, so it is reachable mid-card rather than in settings */
 #flashcardInputModeBtn{ right:52px; }
-/* the answer must not be on screen while it is the thing being asked for */
-body.writing-hide-pinyin #flashcardPinyin,
-body.writing-hide-pinyin .stroke-anim-pinyin{ visibility:hidden; }
+
 /* the box the card is waiting on is the one you tap to open the big writing panel */
 .stroke-quiz-char.stroke-quiz-active{ cursor:pointer; }
 .stroke-quiz-char.stroke-quiz-active:focus-visible{ outline:2px solid var(--accent-solid); outline-offset:2px; }
