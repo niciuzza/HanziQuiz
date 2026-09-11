@@ -320,6 +320,24 @@ function componentRoleMap(piece){
 const COMPONENT_FAMILY_MIN = 2;
 function hasComponentFamily(piece){ return charsWithComponent(piece).size >= COMPONENT_FAMILY_MIN; }
 
+// remembers whichever of the two character screens is open, so a jump from either one unwinds
+// correctly — unlike pushWordDetail/pushComponentFamily, which each assume the other as the
+// screen being left
+function pushCurrentCharScreen(){
+  if (screen === 'wordDetail') { const w = detailWord; charNavStack.push(() => { detailWord = w; showScreen('wordDetail'); }); }
+  else { const p = familyComponent; charNavStack.push(() => { familyComponent = p; showScreen('componentFamily'); }); }
+}
+// Most characters listed in a usage card are not words the app teaches on their own — 怕 is
+// only ever met inside 可怕 and 害怕 — so there is no Word Detail to open for them. Those land
+// on the family screen instead, which reads the same way: the character, its meaning, and every
+// word using it. 844 of the 1424 listed characters are standalone words, the other 580 are not.
+function openCharDetail(ch){
+  const word = combinedPool().find(w => w.c === ch);
+  pushCurrentCharScreen();
+  if (word) { detailWord = word; showScreen('wordDetail'); }
+  else { familyComponent = ch; showScreen('componentFamily'); }
+}
+
 // shared by Word Detail (where tapping it opens the family screen) and by the family screen
 // itself (where it is already open, so `onOpen` is omitted and the card stays inert)
 function buildComponentUsage(piece, onOpen){
@@ -335,9 +353,16 @@ function buildComponentUsage(piece, onOpen){
     + '</div>';
   html += '<div class="usage-roles">' + COMPONENT_ROLES.filter(r => map[r.key].length).map(r =>
     `<div class="usage-role-row"><span class="cb-role ${r.cls}">${r.label}</span>`
-    + `<span class="usage-chars">${map[r.key].map(ch => `<span class="usage-char">${ch}</span>`).join('')}</span></div>`
+    + `<span class="usage-chars">${map[r.key].map(ch =>
+        `<span class="usage-char" data-char="${ch}" role="button" tabindex="0">${ch}</span>`).join('')}</span></div>`
   ).join('') + '</div>';
   card.innerHTML = html;
+  card.querySelectorAll('.usage-char').forEach(el => {
+    // the card itself may be tappable too, so a chip has to claim the click
+    const open = (e) => { e.stopPropagation(); openCharDetail(el.dataset.char); };
+    el.onclick = open;
+    el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); } };
+  });
   if (onOpen) {
     card.setAttribute('role', 'button');
     card.tabIndex = 0;
@@ -1835,7 +1860,7 @@ function renderComponentFamily(){
   applyWordListView('familyList', 'familyGrid', 'familyViewListBtn', 'familyViewGridBtn');
   const label = document.getElementById('familyCount');
   label.textContent = family.length
-    ? `${family.length} word${family.length === 1 ? '' : 's'} built from ${piece}`
+    ? `${family.length} word${family.length === 1 ? '' : 's'} using ${piece}`
     : '';
   const emptyState = family.length === 0
     ? `<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center;">No words with ${piece} in the selected lists.</div>`

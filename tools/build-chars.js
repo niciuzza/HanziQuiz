@@ -119,8 +119,9 @@ const HEADER = `// Character composition data for every hanzi used by the built-
 //      mixes in folk explanations and occasionally describes the simplified form rather than the
 //      character's real history, so present it as a hint and never as a fact.
 //
-// COMPONENTS[piece] = [gloss, pinyin] for every piece referenced by a CHARS decomposition, so
-// the parts can be labelled: 亻 reads as "man, person; people", 马 as "horse; surname" (mǎ).
+// COMPONENTS[char] = [gloss, pinyin] for every piece referenced by a CHARS decomposition and
+// every character in CHARS itself, so anything the UI puts on screen can be labelled: 亻 reads
+// as "man, person; people", 马 as "horse; surname" (mǎ).
 // The pinyin matters most for the sound part of a pictophonetic character — that a 马 in 妈
 // is there for its mǎ is the whole point, and most sound components aren't words the app
 // teaches on their own, so their reading isn't available anywhere else. Either position can
@@ -145,8 +146,11 @@ async function main(){
     chars[ch] = buildEntry(entry, overrides[ch]);
   }
 
-  // every piece referenced by a decomposition, so the UI can gloss the parts it shows
-  const referenced = new Set();
+  // every piece referenced by a decomposition, so the UI can gloss the parts it shows — plus
+  // every deck character, because the reverse view (the characters built FROM a piece) puts
+  // those on screen too, and most of them are not words the app teaches on their own: 怕 is
+  // only ever met inside 可怕 and 害怕, so its reading and meaning live nowhere else
+  const referenced = new Set(Object.keys(chars));
   for (const [ch, entry] of Object.entries(chars)) {
     for (const piece of piecesOf(entry.d)) if (piece !== ch) referenced.add(piece);
   }

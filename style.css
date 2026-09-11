@@ -843,7 +843,11 @@ button.settings-menu-item:hover{ background:var(--surface-1); }
   border-radius:var(--radius);
   background:var(--surface-1);
   color:var(--text-primary);
+  cursor:pointer;
+  box-shadow:inset 0 0 0 1px var(--border-strong);
 }
+.usage-char:hover{ filter:brightness(1.12); }
+.usage-char:focus-visible{ outline:2px solid var(--accent-solid); outline-offset:1px; }
 
 /* ---------- Word Detail ---------- */
 .detail-card{ position:relative; padding-top:44px; }
