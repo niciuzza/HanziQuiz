@@ -207,6 +207,80 @@ function setStrokeAnimSpeed(speed){
     if (c && c._word && !c.classList.contains('hidden')) renderStrokeAnimation(c, c._word);
   });
 }
+
+/* ---------- character composition (CHARS / COMPONENTS, see chars.js) ---------- */
+// A decomposition looks like "⿰女马": the leading ⿰⿱⿲⿳⿴⿵⿶⿷⿸⿹⿺⿻ symbol says how the
+// pieces are arranged rather than being a piece itself, and ？ marks a piece the source
+// couldn't identify. Both are dropped, as is the character itself when it lists itself.
+const IDS_OPERATORS = /[⿰-⿿]/;
+function charPieces(ch){
+  const entry = CHARS[ch];
+  if (!entry || !entry.d) return [];
+  return Array.from(entry.d).filter(p => !IDS_OPERATORS.test(p) && p !== '？' && p !== ch);
+}
+function componentGloss(piece){ return (COMPONENTS[piece] || [])[0] || ''; }
+function componentPinyin(piece){ return (COMPONENTS[piece] || [])[1] || ''; }
+
+// Builds the "how the character is built" card for a single hanzi, or null when there's
+// nothing worth showing. What appears depends on how the character was formed:
+//   pictophonetic — the meaning piece and the sound piece, which is the pattern worth
+//                   noticing: once 女 reads as "this is about women" and 马 as "this sounds
+//                   like mǎ", 妈 stops being an arbitrary shape
+//   ideographic   — the pieces plus the source's memory aid for how they combine
+//   pictographic  — the memory aid alone. The character is a picture of the thing, so its
+//                   "pieces" are strokes that carry no meaning of their own (马 splits into
+//                   一 and an unidentified piece), and listing them would teach a fiction.
+function buildCharBreakdown(ch){
+  const entry = CHARS[ch];
+  if (!entry) return null;
+  const pieces = charPieces(ch);
+  const hasRoles = entry.t === 'p' && !!entry.s && !!entry.f;
+  const showPieces = entry.t !== 'g' && pieces.length >= 2;
+  // a pictophonetic hint just restates its meaning piece ("woman" for 妈), so it only earns
+  // the space when the roles below aren't already saying it
+  const hint = !hasRoles && entry.h ? entry.h : '';
+  if (!showPieces && !hint) return null;
+
+  const roleOf = (p) => (hasRoles && p === entry.s) ? 'semantic' : (hasRoles && p === entry.f) ? 'phonetic' : '';
+  const chip = (p) => `<span class="cb-piece ${roleOf(p)}">${p}</span>`;
+  const box = document.createElement('div');
+  box.className = 'char-breakdown-item';
+
+  let html = `<div class="cb-head"><span class="cb-char">${ch}</span>`;
+  if (showPieces) {
+    html += `<span class="cb-op">=</span>${pieces.map(chip).join('<span class="cb-op">+</span>')}`;
+  }
+  html += '</div>';
+
+  if (showPieces) {
+    html += '<div class="cb-parts">' + pieces.map(p => {
+      const role = roleOf(p);
+      const label = role === 'semantic' ? 'meaning' : role === 'phonetic' ? 'sound' : '';
+      const detail = [componentPinyin(p), componentGloss(p)].filter(Boolean).join(' · ');
+      return `<div class="cb-part">${chip(p)}`
+        + (label ? `<span class="cb-role ${role}">${label}</span>` : '')
+        + `<span class="cb-gloss">${detail || '—'}</span></div>`;
+    }).join('') + '</div>';
+  }
+  // labelled as a memory aid on purpose: the source mixes in folk explanations and sometimes
+  // describes the simplified shape rather than the character's actual history
+  if (hint) html += `<p class="cb-hint"><span class="cb-hint-label">memory aid</span>${hint}</p>`;
+  box.innerHTML = html;
+  return box;
+}
+// one card per hanzi in the word, so 妈妈 explains 妈 once and 不好意思 explains all four
+function renderCharBreakdown(section, container, word){
+  container.innerHTML = '';
+  const seen = new Set();
+  Array.from(word).forEach(ch => {
+    if (seen.has(ch)) return;
+    seen.add(ch);
+    const block = buildCharBreakdown(ch);
+    if (block) container.appendChild(block);
+  });
+  section.classList.toggle('hidden', container.children.length === 0);
+}
+
 let words = []; // user's own custom words: { c, p, m, tags }
 let statsMap = {}; // key (c::m) -> { correct, wrong, dontknow }, covers built-in + custom words
 let score = 0, total = 0, streak = 0, lastWord = null;
@@ -2274,6 +2348,12 @@ function renderWordDetail(){
     detailMeaningEl.classList.toggle('hidden', ok);
     strokeControls.classList.toggle('hidden', !ok);
   });
+
+  renderCharBreakdown(
+    document.getElementById('detailBreakdownSection'),
+    document.getElementById('detailBreakdown'),
+    w.c
+  );
 
   // lifetime stats for this word, fetched fresh (not from whatever fields the calling
   // screen's row happened to carry) so they're always accurate

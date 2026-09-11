@@ -776,6 +776,44 @@ button.settings-menu-item:hover{ background:var(--surface-1); }
 .del-btn:hover{ color:var(--danger-text); border-color:var(--danger-border); background:var(--danger-bg); }
 .del-btn-spacer{ display:inline-block; width:31px; }
 
+/* ---------- character composition (Word Detail) ---------- */
+/* the two roles get their own colours so the pattern is visible at a glance across many words:
+   teal for the piece carrying the meaning, violet for the piece carrying the sound. Reuses the
+   HSK6/HSK2 tokens because they already have light and dark values and, unlike the success and
+   danger colours, carry no right/wrong connotation here. */
+.char-breakdown{ display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.char-breakdown-item{
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  background:var(--surface-2);
+  padding:12px 14px;
+}
+.cb-head{ display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.cb-char{ font-family:'Noto Sans SC',sans-serif; font-size:28px; font-weight:700; line-height:1; }
+.cb-op{ color:var(--text-muted); font-size:15px; font-weight:600; }
+.cb-piece{
+  font-family:'Noto Sans SC',sans-serif; font-size:20px; font-weight:700; line-height:1;
+  padding:4px 8px; border-radius:8px;
+  background:var(--surface-1); color:var(--text-primary);
+}
+.cb-piece.semantic{ background:var(--hsk6-bg); color:var(--hsk6-text); }
+.cb-piece.phonetic{ background:var(--hsk2-bg); color:var(--hsk2-text); }
+.cb-parts{ display:flex; flex-direction:column; gap:7px; }
+.cb-part{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.cb-part .cb-piece{ font-size:17px; padding:3px 7px; }
+.cb-role{
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+  padding:3px 8px; border-radius:999px;
+}
+.cb-role.semantic{ background:var(--hsk6-bg); color:var(--hsk6-text); }
+.cb-role.phonetic{ background:var(--hsk2-bg); color:var(--hsk2-text); }
+.cb-gloss{ font-size:13px; color:var(--text-secondary); }
+.cb-hint{ margin:10px 0 0; font-size:13px; color:var(--text-secondary); line-height:1.5; }
+.cb-hint-label{
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+  color:var(--text-muted); margin-right:7px;
+}
+
 /* ---------- Word Detail ---------- */
 .detail-card{ position:relative; padding-top:44px; }
 .detail-speak-btn{

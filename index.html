@@ -14,7 +14,7 @@
 <!-- Bump ?v= whenever style.css / data.js / script.js change, so GitHub Pages'
      per-file caching can't pair a fresh index.html with a stale, mismatched asset
      (e.g. a renamed element id) and break the page. -->
-<link rel="stylesheet" href="style.css?v=102">
+<link rel="stylesheet" href="style.css?v=103">
 </head>
 <body>
   <div class="app">
@@ -323,6 +323,11 @@
         <p class="detail-meaning" id="detailMeaning"></p>
       </div>
 
+      <div id="detailBreakdownSection" class="hidden">
+        <p class="section-label">How the character is built</p>
+        <div class="char-breakdown" id="detailBreakdown"></div>
+      </div>
+
       <div class="detail-meta-list">
         <div class="detail-meta-row"><span class="detail-meta-label">Topic</span><span class="detail-meta-value" id="detailTopic">—</span></div>
         <div class="detail-meta-row"><span class="detail-meta-label">Part of speech</span><span class="detail-meta-value" id="detailPos">—</span></div>
@@ -522,9 +527,9 @@
 
   </div>
 
-  <script src="data.js?v=102"></script>
+  <script src="data.js?v=103"></script>
   <!-- character composition data (CHARS/COMPONENTS) — separate file, LGPL v3, see NOTICE.md -->
-  <script src="chars.js?v=102"></script>
-  <script src="script.js?v=102"></script>
+  <script src="chars.js?v=103"></script>
+  <script src="script.js?v=103"></script>
 </body>
 </html>
