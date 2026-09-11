@@ -4,6 +4,7 @@ const SESSION_KEY = 'hsk-vocab-session';
 const THEME_KEY = 'hsk-vocab-theme';
 const AUTOPLAY_SOUND_KEY = 'hsk-vocab-autoplay-sound';
 const HARD_MODE_KEY = 'hsk-vocab-hard-mode';
+const LOOKALIKE_KEY = 'hsk-vocab-lookalike-choices';
 const HANZI_FONT_KEY = 'hsk-vocab-hanzi-font';
 const SRS_KEY = 'hsk-vocab-srs';
 const FLASHCARD_SESSION_KEY = 'hsk-vocab-flashcard-session';
@@ -338,6 +339,7 @@ const ROUND_SIZES = [25, 50, 100, 150, 200, 250];
 let progressTags = new Set(); // Settings' progress-list filter; empty means "all lists"
 let darkMode = false;
 let autoPlaySound = true;
+let lookAlikeChoices = false; // see loadLookAlikeChoices — opt-in harder distractors
 let hardMode = false; // when on, a character with 2+ genuinely distinct senses (see clusterSenses)
 let hanziFont = 'serif';
                        // requires selecting all of them + Submit, instead of tap-one-to-answer
@@ -498,6 +500,26 @@ function toggleHardMode(){
   hardMode = !hardMode;
   try { localStorage.setItem(HARD_MODE_KEY, String(hardMode)); } catch (e) {}
   applyHardMode();
+}
+
+/* ---------- look-alike choices: wrong answers that share a component with the right one ---------- */
+// Off by default because it is a real step up in difficulty: 他 offered next to 她, or 妈 next to
+// 马, can't be dismissed on sight the way an unrelated word can, and the options show pinyin, so
+// a shared sound component usually means near-identical readings too. That's the point once a
+// word is familiar, and unfair while it still isn't, so it's the learner's call.
+function loadLookAlikeChoices(){
+  lookAlikeChoices = localStorage.getItem(LOOKALIKE_KEY) === 'true';
+  applyLookAlikeChoices();
+}
+function applyLookAlikeChoices(){
+  const toggle = document.getElementById('lookAlikeToggle');
+  toggle.classList.toggle('on', lookAlikeChoices);
+  toggle.setAttribute('aria-checked', String(lookAlikeChoices));
+}
+function toggleLookAlikeChoices(){
+  lookAlikeChoices = !lookAlikeChoices;
+  try { localStorage.setItem(LOOKALIKE_KEY, String(lookAlikeChoices)); } catch (e) {}
+  applyLookAlikeChoices();
 }
 
 /* ---------- character font used for the big hanzi in quiz questions & flashcards ---------- */
@@ -2069,17 +2091,44 @@ function requiredSensesFor(word, pool){
   return clusters.map(cl => cl.includes(word) ? word : cl[0]);
 }
 
+// Not all shared components are equally confusing. 亻 turns up in 78 characters and 口 in 122,
+// so sharing one says little — but 也 is in 5 and 青 in 8, and those are exactly the pairs that
+// blur together: 他/她, 请/清. Family sizes bear this out, with a median of 2 and a 90th
+// percentile of 11, so the cutoff sits just above that and cleanly separates a distinctive
+// component from a common radical.
+const DISTINCTIVE_COMPONENT_MAX = 15;
+// every component of `word`, each character counting as a component of itself so 妈 and 马
+// register as related even though 马's own decomposition shares nothing with 妈's
+function wordComponents(word){
+  const pieces = new Map();
+  Array.from(word.c).forEach(ch => {
+    [ch, ...charPieces(ch)].forEach(p => pieces.set(p, charsWithComponent(p).size || 1));
+  });
+  return pieces;
+}
+function sharedComponents(word, other){
+  const mine = wordComponents(word);
+  const theirs = wordComponents(other);
+  return [...mine.keys()].filter(p => theirs.has(p)).map(p => mine.get(p));
+}
+function sharesComponent(word, other){ return sharedComponents(word, other).length > 0; }
+function sharesDistinctiveComponent(word, other){
+  return sharedComponents(word, other).some(size => size <= DISTINCTIVE_COMPONENT_MAX);
+}
+
 // picks distractors that "look like" the correct word first before falling back to a
 // fully random pick, so wrong answers can't be eliminated on sight just because they're
 // an obviously different kind of word (e.g. a grammar particle next to a color) or an
-// obviously different-length one. Tiers, tightest first: same topic AND same syllable
-// count > same syllable count in any topic > same topic+pos > same topic OR pos >
-// anything else.
+// obviously different-length one. Tiers, tightest first: shares a distinctive component >
+// shares any component (both opt-in, see loadLookAlikeChoices) > same topic AND same syllable
+// count > same syllable count in any topic > same topic+pos > same topic OR pos > anything else.
 function pickDistractors(pool, word, n){
   const others = pool.filter(w => w !== word);
   const wordSyllables = word.p ? syllableCount(word.p) : null;
   const sameSyllables = w => wordSyllables !== null && w.p && syllableCount(w.p) === wordSyllables;
   const tiers = [
+    lookAlikeChoices ? others.filter(w => sharesDistinctiveComponent(word, w)) : [],
+    lookAlikeChoices ? others.filter(w => sharesComponent(word, w)) : [],
     others.filter(w => word.topic && w.topic === word.topic && sameSyllables(w)),
     others.filter(sameSyllables),
     others.filter(w => word.topic && word.pos && w.topic === word.topic && w.pos === word.pos),
@@ -2553,6 +2602,7 @@ document.getElementById('flashcardSpeed2xBtn').onclick = (e) => { e.stopPropagat
 document.getElementById('darkModeToggle').onclick = toggleDarkMode;
 document.getElementById('autoPlaySoundToggle').onclick = toggleAutoPlaySound;
 document.getElementById('hardModeToggle').onclick = toggleHardMode;
+document.getElementById('lookAlikeToggle').onclick = toggleLookAlikeChoices;
 document.querySelectorAll('#hanziFontRow .mode-switch-btn').forEach((btn) => {
   btn.onclick = () => setHanziFont(btn.dataset.font);
 });
@@ -2581,6 +2631,7 @@ document.getElementById('checkUpdateBtn').onclick = async () => {
 loadTheme();
 loadAutoPlaySound();
 loadHardMode();
+loadLookAlikeChoices();
 loadHanziFont();
 loadStats();
 loadSrs();
