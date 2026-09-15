@@ -3,3 +3,7 @@ node_modules/
 *.log
 .claude/
 HANDOFF.md
+
+# local source material for the ES1/ES2 word lists — the spreadsheets and scans the
+# lists were transcribed from, kept out of the repo since only the transcription ships
+ES2/
